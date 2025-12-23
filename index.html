@@ -8,355 +8,307 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
-    <!-- Firebase Libraries -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config || '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        const firebaseConfig = {
+            apiKey: "AIzaSyAeFtVA7Yg-DD8knaa9OxCPSoRnBKiUINk",
+            authDomain: "apartamento-d328e.firebaseapp.com",
+            projectId: "apartamento-d328e",
+            storageBucket: "apartamento-d328e.firebasestorage.app",
+            messagingSenderId: "206733797802",
+            appId: "1:206733797802:web:52fe508854e1c0d09d63d3",
+            measurementId: "G-ER77Q970B7"
+        };
+
+        const appId = 'apartamento-d328e-prod';
+        const collectionName = 'finance_tracker';
+        const docId = 'finance-main';
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
         let currentData = null;
-        const docId = 'apzinho-92-finance-v3'; 
-        let hasCelebrated50 = false;
-        let hasCelebrated100 = false;
-
-        const defaultData = {
-            config: {
-                totalFinanciamento: 218149.62,
-                totalEntrada: 37733.85,
-                saldoInicial: 4999.90,
-                statusObra: 7.43,
-                coupleImageUrl: ''
-            },
-            payments: [
-                { month: 'Jan/25', entrada_pago: 1000.00, evo_pago: 0.00 }
-            ],
-            anuais: [
-                { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500.00, pago: false },
-                { id: 2, label: 'Anual 2 (Dez/26)', valor: 2500.00, pago: false },
-                { id: 3, label: 'Anual 3 (Dez/27)', valor: 2500.00, pago: false }
-            ],
-            poupanca: {
-                itens: [],
-                rendimentoTotal: 0
-            }
-        };
+        let lastCelebration = 0; 
 
         window.getAppData = () => currentData;
 
         window.saveDataCloud = async function() {
             if (!auth.currentUser || !currentData) return;
-            updateStatus('Salvando...', 'text-yellow-200');
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
+            updateStatus('Sincronizando...', 'text-yellow-200');
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
             try {
                 await setDoc(docRef, currentData);
                 updateStatus('Sincronizado', 'text-green-200');
             } catch (e) {
-                console.error(e);
+                console.error("Erro ao salvar:", e);
                 updateStatus('Erro ao salvar', 'text-red-300');
             }
         };
 
-        // Modal de Poupança
-        window.openPoupancaModal = () => {
-            document.getElementById('poupanca-modal').classList.remove('hidden');
-            document.getElementById('poupanca-modal').classList.add('flex');
-        };
-
-        window.closePoupancaModal = () => {
-            document.getElementById('poupanca-modal').classList.add('hidden');
-            document.getElementById('poupanca-modal').classList.remove('flex');
-        };
-
-        window.confirmAddPoupanca = () => {
-            const data = window.getAppData();
-            const desc = document.getElementById('poup-desc').value;
-            const valor = parseFloat(document.getElementById('poup-valor').value);
-            const rend = parseFloat(document.getElementById('poup-rend').value) || 0;
-
-            if (desc && !isNaN(valor)) {
-                if (!data.poupanca) data.poupanca = { itens: [], rendimentoTotal: 0 };
-                if (!data.poupanca.itens) data.poupanca.itens = [];
-                
-                data.poupanca.itens.push({ 
-                    desc, 
-                    valor, 
-                    data: new Date().toLocaleDateString('pt-BR') 
-                });
-                data.poupanca.rendimentoTotal = (data.poupanca.rendimentoTotal || 0) + rend;
-                
-                window.saveDataCloud();
-                renderAll();
-                window.closePoupancaModal();
-                // Limpar campos
-                document.getElementById('poup-desc').value = '';
-                document.getElementById('poup-valor').value = '';
-                document.getElementById('poup-rend').value = '';
-            }
-        };
-
-        window.removePoupanca = function(i) {
-            const data = window.getAppData();
-            if(confirm('Remover esta economia?')) {
-                data.poupanca.itens.splice(i, 1);
-                window.saveDataCloud();
-                renderAll();
-            }
-        };
-
-        // Função de Excluir com Confirmação
-        window.deleteRow = function(i) {
-            const data = window.getAppData();
-            if(!data) return;
+        window.updateObraStatus = (val) => {
+            if(!currentData || !currentData.config) return; 
+            const num = parseFloat(val);
+            currentData.config.statusObra = num;
             
-            // Pergunta de segurança
-            const confirmacao = confirm('Certeza que deseja excluir este mês?');
-            
-            if(confirmacao) {
-                data.payments.splice(i, 1);
-                window.saveDataCloud();
-                renderAll();
+            if(num >= 50 && lastCelebration < 50) {
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#f472b6', '#60a5fa'] });
+                lastCelebration = 50;
+            } else if(num >= 100 && lastCelebration < 100) {
+                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+                lastCelebration = 100;
             }
+
+            renderAll();
+            clearTimeout(window.saveTimeout);
+            window.saveTimeout = setTimeout(() => window.saveDataCloud(), 800);
         };
 
         window.updateField = (i, field, val) => {
-            const data = window.getAppData();
-            if(!data) return;
-            data.payments[i][field] = (field === 'month') ? val : (parseFloat(val) || 0);
+            if(!currentData) return;
+            currentData.payments[i][field] = (field === 'month') ? val : (parseFloat(val) || 0);
             window.saveDataCloud();
             renderAll();
-        };
-
-        window.updateObraStatus = (val) => {
-            const data = window.getAppData();
-            if(!data) return;
-            const numericVal = parseFloat(val);
-            data.config.statusObra = numericVal;
-            
-            if(numericVal >= 50 && !hasCelebrated50) {
-                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#f472b6', '#a78bfa'] });
-                hasCelebrated50 = true;
-            } else if (numericVal < 50) {
-                hasCelebrated50 = false;
-            }
-
-            if(numericVal >= 100 && !hasCelebrated100) {
-                confetti({ particleCount: 300, spread: 100, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b'] });
-                hasCelebrated100 = true;
-            } else if (numericVal < 100) {
-                hasCelebrated100 = false;
-            }
-
-            clearTimeout(window.saveTimeout);
-            window.saveTimeout = setTimeout(() => {
-                window.saveDataCloud();
-                renderAll();
-            }, 500);
-        };
-
-        window.updateCoupleImage = function() {
-            const urlInput = document.getElementById('setting-couple-url');
-            const data = window.getAppData();
-            if(data) {
-                data.config.coupleImageUrl = urlInput.value;
-                window.saveDataCloud();
-                renderAll();
-            }
         };
 
         window.addNewMonth = () => {
-            const data = window.getAppData();
-            if(!data) return;
-            data.payments.push({ month: 'Mês', entrada_pago: 0, evo_pago: 0 });
+            if(!currentData) return;
+            currentData.payments.push({ month: 'Mês/Ano', entrada_pago: 0, evo_pago: 0 });
             window.saveDataCloud();
             renderAll();
+        };
+
+        window.deleteRow = function(i) {
+            if(!currentData) return;
+            if(confirm('Deseja excluir este registro?')) {
+                currentData.payments.splice(i, 1);
+                window.saveDataCloud();
+                renderAll();
+            }
         };
 
         window.toggleAnual = (i) => {
-            const data = window.getAppData();
-            if(!data) return;
-            data.anuais[i].pago = !data.anuais[i].pago;
+            if(!currentData) return;
+            currentData.anuais[i].pago = !currentData.anuais[i].pago;
             window.saveDataCloud();
             renderAll();
         };
 
-        window.toggleSettings = () => {
-            const panel = document.getElementById('settings-panel');
-            panel.classList.toggle('hidden');
+        window.toggleSettings = () => document.getElementById('settings-panel').classList.toggle('hidden');
+        window.openPoupancaModal = () => document.getElementById('poupanca-modal').classList.remove('hidden');
+        window.closePoupancaModal = () => document.getElementById('poupanca-modal').classList.add('hidden');
+
+        window.confirmAddPoupanca = () => {
+            if(!currentData) return;
+            const desc = document.getElementById('poup-desc').value;
+            const valor = parseFloat(document.getElementById('poup-valor').value);
+            if (desc && !isNaN(valor)) {
+                if (!currentData.poupanca) currentData.poupanca = { itens: [], rendimentoTotal: 0 };
+                currentData.poupanca.itens.push({ desc, valor, data: new Date().toLocaleDateString('pt-BR') });
+                window.saveDataCloud();
+                renderAll();
+                window.closePoupancaModal();
+                document.getElementById('poup-desc').value = ''; 
+                document.getElementById('poup-valor').value = '';
+            }
         };
 
-        async function initApp() {
+        window.removePoupanca = (i) => {
+            if(!currentData) return;
+            currentData.poupanca.itens.splice(i, 1);
+            window.saveDataCloud();
+            renderAll();
+        };
+
+        async function init() {
+            updateStatus('Conectando...', 'text-white/50');
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) { console.error(err); }
-            onAuthStateChanged(auth, (user) => { if (user) setupRealtimeSync(); });
+                await signInAnonymously(auth);
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
+                        onSnapshot(docRef, (snap) => {
+                            if (snap.exists()) {
+                                currentData = snap.data();
+                                renderAll();
+                                updateStatus('Conectado', 'text-green-200');
+                            } else {
+                                updateStatus('Criando banco...', 'text-blue-200');
+                                currentData = {
+                                    config: { totalFinanciamento: 218149.62, statusObra: 7.43 },
+                                    payments: [{ month: 'Jan/25', entrada_pago: 0, evo_pago: 0 }],
+                                    anuais: [
+                                        { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500, pago: false },
+                                        { id: 2, label: 'Anual 2 (Dez/26)', valor: 2500, pago: false },
+                                        { id: 3, label: 'Anual 3 (Dez/27)', valor: 2500, pago: false }
+                                    ],
+                                    poupanca: { itens: [], rendimentoTotal: 0 }
+                                };
+                                setDoc(docRef, currentData);
+                            }
+                        }, (err) => {
+                            console.error("Erro Snapshot:", err);
+                            updateStatus('Erro de Permissão', 'text-red-400');
+                        });
+                    }
+                });
+            } catch (e) {
+                console.error("Erro no Login:", e);
+                updateStatus('Erro de Acesso', 'text-red-500 bg-white px-2');
+            }
         }
-
-        function setupRealtimeSync() {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
-            onSnapshot(docRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    currentData = snapshot.data();
-                } else {
-                    currentData = defaultData;
-                    setDoc(docRef, defaultData);
-                }
-                renderAll();
-                updateStatus('Sincronizado', 'text-green-200');
-            }, (err) => {
-                updateStatus('Erro de conexão', 'text-red-300');
-            });
-        }
-
-        initApp();
+        window.onload = init;
     </script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
-        body { font-family: 'Nunito', sans-serif; background-color: #fff5f7; color: #4a5568; overflow-x: hidden; }
+        body { font-family: 'Nunito', sans-serif; background-color: #fff5f7; color: #4a5568; overflow-x: hidden; position: relative; }
         
-        .bg-couple { background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #60a5fa 100%); transition: all 0.8s ease; }
-        .bg-gold { background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #d97706 100%) !important; border-bottom: 4px solid #b45309; }
-        
+        .bg-pattern {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5;
+            opacity: 0.12;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ec4899' fill-opacity='0.6' fill-rule='evenodd'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .bg-couple { 
+            background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #60a5fa 100%); 
+            position: relative;
+        }
+
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.1); border-radius: 1.5rem; }
         .input-editable { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px; width: 100%; text-align: right; font-size: 13px; }
         .input-editable:focus { background: white; border-color: #ec4899; outline: none; }
-        .card-shadow { box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.1); border-radius: 1.5rem; transition: all 0.5s ease; }
+        .hidden { display: none; }
         
-        @keyframes glowing {
-            0% { box-shadow: 0 0 5px rgba(244, 114, 182, 0.4); }
-            50% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.8); }
-            100% { box-shadow: 0 0 5px rgba(244, 114, 182, 0.4); }
+        .cute-icon-wrapper {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 28px;
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            animation: float 3s ease-in-out infinite;
         }
-        .animate-glow { animation: glowing 2s infinite; }
 
-        .status-ready { background: #fef3c7 !important; border-color: #fbbf24 !important; color: #92400e !important; }
-
-        .couple-image-container { width: 80px; height: 80px; border-radius: 50%; border: 4px solid white; overflow: hidden; margin: 0 auto 10px; background: rgba(255,255,255,0.2); }
-        .couple-image-container img { width: 100%; height: 100%; object-fit: cover; }
-        
-        /* Modal Backdrop */
-        .modal-bg { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
-
-        /* Transição de deleção */
-        .row-fade-out { transition: opacity 0.3s ease, transform 0.3s ease; opacity: 0; transform: translateX(20px); }
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-12px) rotate(3deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
     </style>
 </head>
 <body class="min-h-screen pb-20">
+    <div class="bg-pattern"></div>
 
-    <!-- Modal de Poupança -->
-    <div id="poupanca-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 modal-bg">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl scale-in">
-            <h3 class="text-xl font-black text-gray-800 mb-4 flex items-center gap-2">
-                <i class="fas fa-piggy-bank text-yellow-500"></i> Guardar no Cofrinho
-            </h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="text-[10px] font-black text-gray-400 uppercase">O que você está guardando?</label>
-                    <input type="text" id="poup-desc" placeholder="Ex: Sofá, Revestimento..." class="w-full bg-gray-50 border border-gray-100 p-3 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-black text-gray-400 uppercase">Valor Guardado (R$)</label>
-                        <input type="number" id="poup-valor" placeholder="0.00" class="w-full bg-gray-50 border border-gray-100 p-3 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black text-gray-400 uppercase">Rendimento (R$)</label>
-                        <input type="number" id="poup-rend" placeholder="0.00" class="w-full bg-gray-50 border border-gray-100 p-3 rounded-xl focus:ring-2 focus:ring-green-400 outline-none">
-                    </div>
-                </div>
-            </div>
-            <div class="flex gap-3 mt-6">
+    <div id="poupanca-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-sm flex">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
+            <h3 class="text-xl font-black mb-4"><i class="fas fa-piggy-bank text-yellow-500 mr-2"></i>Novo Depósito</h3>
+            <input type="text" id="poup-desc" placeholder="O que vamos comprar? (Ex: Sofá)" class="w-full mb-3 p-3 bg-gray-50 rounded-xl border-none outline-none">
+            <input type="number" id="poup-valor" placeholder="Valor R$" class="w-full mb-4 p-3 bg-gray-50 rounded-xl border-none outline-none">
+            <div class="flex gap-2">
                 <button onclick="closePoupancaModal()" class="flex-1 py-3 font-bold text-gray-400 bg-gray-50 rounded-xl">Cancelar</button>
-                <button onclick="confirmAddPoupanca()" class="flex-1 py-3 font-black text-white bg-yellow-500 rounded-xl shadow-lg shadow-yellow-200">Guardar Agora</button>
+                <button onclick="confirmAddPoupanca()" class="flex-1 py-3 font-black text-white bg-yellow-500 rounded-xl">Guardar</button>
             </div>
         </div>
     </div>
 
-    <header id="main-header" class="bg-couple text-white pb-24 pt-8 px-4 shadow-2xl rounded-b-[3rem] relative text-center">
+    <header class="bg-couple text-white pb-20 pt-12 px-4 shadow-2xl rounded-b-[4rem] relative text-center">
         <div class="max-w-5xl mx-auto relative z-10">
-            <div id="couple-header-img" class="couple-image-container hidden">
-                <img id="display-couple-img" src="" alt="Nós">
+            
+            <!-- Ícone Principal Animado -->
+            <div class="cute-icon-wrapper">
+                <svg viewBox="0 0 100 100" class="w-14 h-14">
+                    <!-- Base da Casinha -->
+                    <path d="M20,50 L20,85 C20,87.7 22.3,90 25,90 L75,90 C77.7,90 80,87.7 80,85 L80,50" fill="white" />
+                    <!-- Telhado -->
+                    <path d="M10,55 L50,15 L90,55" stroke="white" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                    <!-- Janela Coração -->
+                    <path d="M50,72 C50,72 45,68 45,64 C45,61 47,59 50,59 C53,59 55,61 55,64 C55,68 50,72 50,72" fill="#f472b6" />
+                    <!-- Estrelas/Brilhos -->
+                    <circle cx="85" cy="20" r="3" fill="white">
+                        <animate attributeName="opacity" values="0;1;0" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="15" cy="35" r="2" fill="white">
+                        <animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite" />
+                    </circle>
+                </svg>
             </div>
-            <div id="couple-heart-icon" class="bg-white/20 backdrop-blur-md w-14 h-14 flex items-center justify-center rounded-2xl mb-3 mx-auto border border-white/40 shadow-lg">
-                <i id="header-icon" class="fas fa-heart text-2xl animate-pulse"></i>
-            </div>
-            <h1 class="text-3xl font-black mb-1 drop-shadow-md tracking-tight">Apzinho 92</h1>
-            <p id="header-subtitle" class="text-pink-100 text-sm font-medium tracking-wide">Nossa Conquista em 2025</p>
-            <div class="inline-flex items-center gap-2 bg-black/10 px-4 py-1.5 rounded-full text-[9px] font-bold mt-3 border border-white/10">
-                <span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                <span id="sync-status" class="uppercase tracking-widest text-green-200">Conectado</span>
-            </div>
+
+            <h1 class="text-5xl font-black mb-2 drop-shadow-lg tracking-tight">Apzinho 92</h1>
+            <p class="text-white font-black tracking-[0.2em] uppercase text-xs opacity-90">Thamirinha & Felipinho • 2025</p>
+            
+            <div id="sync-status" class="block mx-auto max-w-fit items-center gap-2 bg-black/20 px-4 py-1.5 rounded-full text-[9px] font-black mt-10 border border-white/20 uppercase tracking-widest">CONECTANDO...</div>
         </div>
-        <button onclick="toggleSettings()" class="absolute top-6 right-6 text-white/70 bg-white/10 p-2.5 rounded-xl active:scale-90 z-30">
-            <i class="fas fa-sliders-h"></i>
-        </button>
+        <button onclick="toggleSettings()" class="absolute top-6 right-6 text-white/70 bg-white/10 p-2.5 rounded-xl active:scale-90 z-20"><i class="fas fa-sliders-h"></i></button>
     </header>
 
-    <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-20">
-        
-        <!-- Dashboard Summary -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-center">
-            <div class="bg-white p-4 card-shadow border border-pink-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center mb-2"><i class="fas fa-home text-pink-500 text-sm"></i></div>
-                <p class="text-[9px] font-black text-pink-400 uppercase tracking-widest">Entrada Paga</p>
-                <h2 class="text-lg font-black text-gray-800" id="display-entrada-paga">R$ 0,00</h2>
+    <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-30">
+        <!-- Dashboard -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-center">
+            <div class="bg-white p-5 card-shadow border border-pink-50 flex flex-col items-center">
+                <div class="w-10 h-10 bg-pink-100 rounded-2xl flex items-center justify-center text-pink-500 mb-3 shadow-inner">
+                    <i class="fas fa-hand-holding-usd text-sm"></i>
+                </div>
+                <p class="text-[10px] font-black text-pink-400 uppercase tracking-tighter">Entrada</p>
+                <h2 class="text-xl font-black" id="dash-entrada">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-4 card-shadow border border-blue-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-2"><i class="fas fa-chart-line text-blue-500 text-sm"></i></div>
-                <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest">Evolução Obra</p>
-                <h2 class="text-lg font-black text-gray-800" id="display-evolucao-paga">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border border-blue-50 flex flex-col items-center">
+                <div class="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-500 mb-3 shadow-inner">
+                    <i class="fas fa-building text-sm"></i>
+                </div>
+                <p class="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Obra</p>
+                <h2 class="text-xl font-black" id="dash-obra">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-4 card-shadow border border-yellow-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mb-2"><i class="fas fa-piggy-bank text-yellow-600 text-sm"></i></div>
-                <p class="text-[9px] font-black text-yellow-600 uppercase tracking-widest">No Cofrinho</p>
-                <h2 class="text-lg font-black text-gray-800" id="display-poupanca">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border border-yellow-50 flex flex-col items-center">
+                <div class="w-10 h-10 bg-yellow-100 rounded-2xl flex items-center justify-center text-yellow-600 mb-3 shadow-inner">
+                    <i class="fas fa-piggy-bank text-sm"></i>
+                </div>
+                <p class="text-[10px] font-black text-yellow-600 uppercase tracking-tighter">Cofrinho</p>
+                <h2 class="text-xl font-black" id="dash-poupanca">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-4 card-shadow border border-purple-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mb-2"><i class="fas fa-coins text-purple-500 text-sm"></i></div>
-                <p class="text-[9px] font-black text-purple-400 uppercase tracking-widest">Total Geral</p>
-                <h2 class="text-lg font-black text-gray-800" id="display-total-geral">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border border-purple-50 flex flex-col items-center">
+                <div class="w-10 h-10 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-500 mb-3 shadow-inner">
+                    <i class="fas fa-heart text-sm"></i>
+                </div>
+                <p class="text-[10px] font-black text-purple-400 uppercase tracking-tighter">Total</p>
+                <h2 class="text-xl font-black font-extrabold" id="dash-total">R$ 0,00</h2>
             </div>
         </div>
 
+        <!-- Painel de Definições -->
         <div id="settings-panel" class="hidden bg-white rounded-3xl p-6 mb-6 card-shadow border border-pink-100">
-            <h3 class="font-bold text-gray-700 mb-4 text-xs uppercase tracking-widest">Configurações</h3>
-            <div class="space-y-4">
-                <div class="bg-pink-50/30 p-4 rounded-2xl">
-                    <label class="text-[10px] font-black text-pink-500 uppercase block mb-2">Progresso da Obra: <span id="label-obra-perc">0%</span></label>
-                    <input type="range" id="setting-obra-range" min="0" max="100" step="0.01" class="w-full h-2 bg-pink-100 rounded-lg appearance-none cursor-pointer accent-pink-500" oninput="updateObraStatus(this.value)">
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input type="text" id="setting-couple-url" placeholder="URL da foto do casal" class="bg-gray-50 p-3 rounded-xl text-xs border border-gray-100 w-full" onchange="updateCoupleImage()">
-                </div>
-            </div>
+            <h3 class="text-xs font-black text-gray-400 uppercase mb-4">Progresso da Obra</h3>
+            <input type="range" id="setting-obra-range" min="0" max="100" step="0.01" class="w-full h-2 bg-pink-100 rounded-lg appearance-none cursor-pointer accent-pink-500" oninput="updateObraStatus(this.value)">
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Coluna Esquerda: Mensal e Cofrinho -->
             <div class="lg:col-span-2 space-y-6">
-                <!-- Tabela de Pagamentos -->
-                <div class="bg-white rounded-[1.5rem] card-shadow border border-gray-100 overflow-hidden">
-                    <div class="p-5 border-b border-gray-50 flex justify-between items-center">
-                        <h3 class="font-black text-gray-700 text-sm flex items-center gap-2"><i class="fas fa-calendar-alt text-pink-400"></i> Mensalidades</h3>
-                        <button onclick="addNewMonth()" class="bg-pink-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90"><i class="fas fa-plus"></i></button>
+                <div class="bg-white rounded-[2rem] card-shadow border border-gray-100 overflow-hidden">
+                    <div class="p-6 border-b flex justify-between items-center">
+                        <h3 class="font-black text-gray-700 text-base"><i class="far fa-calendar-alt mr-2 text-pink-500"></i>Controle Mensal</h3>
+                        <button onclick="addNewMonth()" class="bg-pink-500 text-white w-10 h-10 rounded-2xl shadow-lg active:scale-90 flex items-center justify-center transition-transform">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-[10px]">
-                            <thead class="bg-gray-50 text-[7px] text-gray-400 uppercase font-black">
-                                <tr>
-                                    <th class="px-2 py-3 text-left w-24">Mês</th>
-                                    <th class="px-1 py-3 text-right bg-pink-50/30">Entrada</th>
-                                    <th class="px-1 py-3 text-right bg-blue-50/30">Obra</th>
-                                    <th class="px-2 py-3 text-right">Ação</th>
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-[10px] text-gray-400 font-black uppercase">
+                                <tr class="text-left">
+                                    <th class="px-6 py-4">Mês/Ano</th>
+                                    <th class="px-6 py-4 text-right">Entrada</th>
+                                    <th class="px-6 py-4 text-right">Evolução</th>
+                                    <th class="px-6 py-4 text-center">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="table-body" class="divide-y divide-gray-50"></tbody>
@@ -364,36 +316,29 @@
                     </div>
                 </div>
 
-                <!-- Cofrinho -->
-                <div class="bg-white rounded-[1.5rem] card-shadow border border-yellow-100 overflow-hidden">
-                    <div class="p-5 border-b border-yellow-50 bg-yellow-50/20 flex justify-between items-center">
-                        <div class="flex flex-col">
-                            <h3 class="font-black text-yellow-700 text-sm flex items-center gap-2"><i class="fas fa-piggy-bank"></i> Cofrinho Mudança</h3>
-                            <span id="rendimento-label" class="text-[8px] font-bold text-green-500 uppercase mt-0.5">+ Rendimento: R$ 0,00</span>
-                        </div>
-                        <button onclick="openPoupancaModal()" class="bg-yellow-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-yellow-100 active:scale-95 transition-all">Guardar</button>
+                <div class="bg-white rounded-[2rem] card-shadow border border-yellow-100 overflow-hidden">
+                    <div class="p-6 border-b flex justify-between items-center bg-yellow-50/20">
+                        <h3 class="font-black text-yellow-700 text-base"><i class="fas fa-couch mr-2 text-yellow-500"></i>Cofrinho Mudança</h3>
+                        <button onclick="openPoupancaModal()" class="bg-yellow-500 text-white px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase shadow-md active:scale-95">Adicionar</button>
                     </div>
-                    <div class="p-4 space-y-3" id="poupanca-list"></div>
+                    <div id="poupanca-list" class="p-6 space-y-3"></div>
                 </div>
             </div>
 
+            <!-- Coluna Direita: Status Obra e Anuais -->
             <div class="space-y-6">
-                <!-- Status Obra Card -->
-                <div id="obra-card" class="bg-white rounded-[1.5rem] card-shadow p-6 border border-blue-50 transition-all duration-500">
-                    <div class="flex justify-between items-center mb-4">
-                        <p class="text-[10px] font-black uppercase text-blue-400 tracking-widest">Status da Obra</p>
-                        <span id="display-obra-perc" class="text-2xl font-black text-blue-600">0%</span>
+                <div id="obra-card" class="bg-white rounded-[2rem] card-shadow p-8 border border-blue-50 flex flex-col items-center">
+                    <p class="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Status da Obra</p>
+                    <span id="display-obra-perc" class="text-4xl font-black text-blue-600 mb-4 tracking-tighter">0%</span>
+                    <div class="w-full bg-blue-50 h-4 rounded-full overflow-hidden mb-6 p-1">
+                        <div id="progress-bar-obra" class="bg-blue-500 h-full rounded-full transition-all duration-1000"></div>
                     </div>
-                    <div class="w-full bg-blue-50 h-4 rounded-full overflow-hidden p-1 border border-blue-100">
-                        <div id="progress-bar-obra" class="bg-blue-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
-                    </div>
-                    <p id="obra-msg" class="text-[10px] mt-4 text-center font-bold text-blue-300 italic">O sonho está sendo construído...</p>
+                    <p id="obra-message" class="text-[11px] text-center font-bold text-gray-500 leading-relaxed"></p>
                 </div>
 
-                <!-- Anuais -->
-                <div class="bg-white rounded-[1.5rem] card-shadow p-5 border border-purple-100">
-                    <h3 class="font-black text-gray-700 mb-4 flex items-center gap-2 text-[10px] uppercase tracking-wider"><i class="fas fa-star text-purple-400"></i> Anuais</h3>
-                    <div class="space-y-2" id="anuais-list"></div>
+                <div class="bg-white rounded-[2rem] card-shadow p-6 border border-purple-100">
+                    <h3 class="font-black text-gray-700 text-[11px] uppercase tracking-widest mb-5"><i class="fas fa-gift mr-2 text-purple-500"></i>Parcelas Anuais</h3>
+                    <div id="anuais-list" class="space-y-3"></div>
                 </div>
             </div>
         </div>
@@ -402,7 +347,7 @@
     <script>
         function updateStatus(text, color) {
             const el = document.getElementById('sync-status');
-            if(el) { el.textContent = text; el.className = `uppercase tracking-widest ${color}`; }
+            if(el) { el.innerHTML = text; el.className = `block mx-auto max-w-fit items-center gap-2 bg-black/20 px-4 py-1.5 rounded-full text-[9px] font-black mt-10 border border-white/20 uppercase tracking-widest ${color}`; }
         }
 
         const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -411,112 +356,55 @@
             const data = window.getAppData();
             if(!data) return;
 
-            // Foto do Casal
-            if(data.config.coupleImageUrl) {
-                document.getElementById('display-couple-img').src = data.config.coupleImageUrl;
-                document.getElementById('couple-header-img').classList.remove('hidden');
-                document.getElementById('couple-heart-icon').classList.add('hidden');
-            }
-
-            // Efeitos de Obra e Resets
-            const perc = data.config.statusObra || 0;
-            const obraCard = document.getElementById('obra-card');
-            const mainHeader = document.getElementById('main-header');
-            const obraMsg = document.getElementById('obra-msg');
-            const obraVal = document.getElementById('display-obra-perc');
-            const obraBar = document.getElementById('progress-bar-obra');
-            const headerSubtitle = document.getElementById('header-subtitle');
-            const headerIcon = document.getElementById('header-icon');
-            
-            obraVal.textContent = perc.toFixed(2) + '%';
-            obraBar.style.width = perc + '%';
-            document.getElementById('label-obra-perc').textContent = perc.toFixed(2) + '%';
+            const perc = data.config?.statusObra || 0;
+            const obraMsg = document.getElementById('obra-message');
+            document.getElementById('display-obra-perc').textContent = perc.toFixed(2) + '%';
+            document.getElementById('progress-bar-obra').style.width = perc + '%';
             document.getElementById('setting-obra-range').value = perc;
 
-            // Limpeza de estilos (Estado Normal)
-            obraCard.classList.remove('status-ready', 'animate-glow', 'border-pink-300');
-            mainHeader.classList.remove('bg-gold');
-            headerSubtitle.textContent = "Nossa Conquista em 2025";
-            headerIcon.className = "fas fa-heart text-2xl animate-pulse";
-            obraMsg.textContent = "O sonho está sendo construído...";
+            obraMsg.textContent = perc < 50 ? "Construindo nosso sonho tijolo por tijolo! 🏗️" : "Falta pouco, amor! O nosso ninho está quase pronto. 🏠✨";
 
-            if (perc >= 100) {
-                obraCard.classList.add('status-ready', 'animate-glow');
-                mainHeader.classList.add('bg-gold');
-                obraMsg.innerHTML = "OBRA CONCLUÍDA! 🥂🔑";
-                headerSubtitle.textContent = "CASA PRONTA! O SONHO É REAL!";
-                headerIcon.className = "fas fa-key text-2xl animate-bounce";
-            } else if (perc >= 50) {
-                obraCard.classList.add('animate-glow', 'border-pink-300');
-                obraMsg.textContent = "Mais da metade já foi! Quase lá! ❤️";
-            }
-
-            // Renderizar Tabela
+            let totalEntrada = 0; let totalObra = 0;
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
-            let totalEntradaPaga = data.config.saldoInicial || 0;
-            let totalObraPaga = 0;
-
-            data.payments.forEach((p, i) => {
-                totalEntradaPaga += (p.entrada_pago || 0);
-                totalObraPaga += (p.evo_pago || 0);
-                
-                const tr = document.createElement('tr');
-                tr.id = `row-${i}`;
-                tr.innerHTML = `
-                    <td class="px-2 py-3"><input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable font-black text-left text-gray-700"></td>
-                    <td class="px-1 py-3 bg-pink-50/10"><input type="number" step="0.01" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-600 font-black"></td>
-                    <td class="px-1 py-3 bg-blue-50/10"><input type="number" step="0.01" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-600 font-black"></td>
-                    <td class="px-2 py-3 text-right">
-                        <button onclick="window.deleteRow(${i})" class="w-8 h-8 rounded-lg bg-red-50 text-red-400 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center mx-auto">
-                            <i class="fas fa-trash-alt text-[10px]"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+            (data.payments || []).forEach((p, i) => {
+                totalEntrada += (p.entrada_pago || 0); totalObra += (p.evo_pago || 0);
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4"><input type="text" value="${p.month}" onchange="updateField(${i}, 'month', this.value)" class="input-editable text-left font-bold text-gray-600"></td>
+                        <td class="px-6 py-4"><input type="number" step="0.01" value="${p.entrada_pago}" onchange="updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-500 font-extrabold"></td>
+                        <td class="px-6 py-4"><input type="number" step="0.01" value="${p.evo_pago}" onchange="updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-500 font-extrabold"></td>
+                        <td class="px-6 py-4 text-center"><button onclick="deleteRow(${i})" class="text-red-200 hover:text-red-500 transition-colors"><i class="fas fa-trash-alt"></i></button></td>
+                    </tr>`;
             });
 
-            // Anuais
             const anuaisDiv = document.getElementById('anuais-list');
             anuaisDiv.innerHTML = '';
-            data.anuais.forEach((a, idx) => {
-                if(a.pago) totalEntradaPaga += a.valor;
-                const item = document.createElement('div');
-                item.className = `p-3 rounded-xl border flex items-center justify-between cursor-pointer ${a.pago ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`;
-                item.onclick = () => window.toggleAnual(idx);
-                item.innerHTML = `
-                    <div class="flex items-center gap-2"><i class="fas ${a.pago ? 'fa-check-circle' : 'fa-circle-notch'}"></i><span class="text-[9px] font-bold">${a.label}</span></div>
-                    <span class="text-[9px] font-black">${fmt(a.valor)}</span>`;
-                anuaisDiv.appendChild(item);
-            });
-
-            // Cofrinho
-            const poupancaDiv = document.getElementById('poupanca-list');
-            poupancaDiv.innerHTML = '';
-            let sumPoup = 0;
-            const rendimentoTotal = data.poupanca?.rendimentoTotal || 0;
-            
-            document.getElementById('rendimento-label').textContent = `+ Rendimento: ${fmt(rendimentoTotal)}`;
-
-            const itensPoup = data.poupanca?.itens || [];
-            itensPoup.forEach((po, idx) => {
-                sumPoup += po.valor;
-                const div = document.createElement('div');
-                div.className = "flex justify-between items-center bg-yellow-50/30 p-3 rounded-xl border border-yellow-100";
-                div.innerHTML = `
-                    <div class="flex flex-col"><span class="text-[10px] font-black text-gray-700">${po.desc}</span><span class="text-[8px] text-gray-400">${po.data}</span></div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-black text-yellow-600">${fmt(po.valor)}</span>
-                        <button onclick="window.removePoupanca(${idx})" class="text-red-300 ml-2"><i class="fas fa-times-circle"></i></button>
+            (data.anuais || []).forEach((a, idx) => {
+                if(a.pago) totalEntrada += a.valor;
+                anuaisDiv.innerHTML += `
+                    <div onclick="toggleAnual(${idx})" class="p-4 rounded-2xl border flex justify-between items-center cursor-pointer transition-all ${a.pago ? 'bg-green-50 border-green-200 text-green-700 shadow-inner' : 'bg-gray-50 border-gray-100 text-gray-400'}">
+                        <span class="text-[11px] font-bold">${a.label}</span>
+                        <span class="text-[11px] font-black">${fmt(a.valor)}</span>
                     </div>`;
-                poupancaDiv.appendChild(div);
             });
 
-            // Dash Totals
-            document.getElementById('display-entrada-paga').textContent = fmt(totalEntradaPaga);
-            document.getElementById('display-evolucao-paga').textContent = fmt(totalObraPaga);
-            document.getElementById('display-poupanca').textContent = fmt(sumPoup + rendimentoTotal);
-            document.getElementById('display-total-geral').textContent = fmt(totalEntradaPaga + totalObraPaga);
+            const poupList = document.getElementById('poupanca-list');
+            poupList.innerHTML = '';
+            let totalPoup = data.poupanca?.rendimentoTotal || 0;
+            (data.poupanca?.itens || []).forEach((po, i) => {
+                totalPoup += po.valor;
+                poupList.innerHTML += `
+                    <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-yellow-100 shadow-sm">
+                        <div class="flex flex-col"><span class="text-xs font-black text-gray-700">${po.desc}</span><span class="text-[9px] font-bold text-gray-400 uppercase">${po.data}</span></div>
+                        <div class="flex items-center gap-4"><span class="text-sm font-black text-yellow-600">${fmt(po.valor)}</span><button onclick="removePoupanca(${i})" class="text-red-200 hover:text-red-500"><i class="fas fa-times-circle"></i></button></div>
+                    </div>`;
+            });
+
+            document.getElementById('dash-entrada').textContent = fmt(totalEntrada);
+            document.getElementById('dash-obra').textContent = fmt(totalObra);
+            document.getElementById('dash-poupanca').textContent = fmt(totalPoup);
+            document.getElementById('dash-total').textContent = fmt(totalEntrada + totalObra + totalPoup);
         }
     </script>
 </body>
