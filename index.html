@@ -13,16 +13,31 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config || '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-        
+        // Configurações do Firebase obtidas do ambiente ou fallback
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyAeFtVA7Yg-DD8knaa9OxCPSoRnBKiUINk",
+                authDomain: "apartamento-d328e.firebaseapp.com",
+                projectId: "apartamento-d328e",
+                storageBucket: "apartamento-d328e.firebasestorage.app",
+                messagingSenderId: "206733797802",
+                appId: "1:206733797802:web:52fe508854e1c0d09d63d3"
+            };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        
+        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'apartamento-d328e';
+        
+        // CORREÇÃO DE CAMINHO (REGRA 1): Deve seguir /artifacts/{appId}/public/data/{collectionName}
+        // O document ID pode ser qualquer nome único.
+        const DOC_PATH = ['artifacts', currentAppId, 'public', 'data', 'finance_tracker', 'main_v1'];
 
         let currentData = null;
-        const docId = 'apzinho-92-v5-purple-pink'; // ID Fixo para persistência entre dispositivos
         let lastCelebratedPerc = 0;
+        let unsubscribeSync = null;
 
         const defaultData = {
             config: {
@@ -30,7 +45,7 @@
                 totalEntrada: 37733.85,
                 saldoInicial: 4999.90, 
                 statusObra: 7.43,
-                dataFinanciamento: 'Junho de 2027'
+                dataFinanciamento: 'Junho de 2028'
             },
             payments: [
                 { month: 'Parcela 1', entrada_previsto: 1078.11, entrada_pago: 1078.11, evo_previsto: 0, evo_pago: 0 }
@@ -45,10 +60,9 @@
 
         window.getAppData = () => currentData;
 
-        // Função de salvamento com verificação de autenticação
         window.saveDataCloud = async function() {
             if (!auth.currentUser || !currentData) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
+            const docRef = doc(db, ...DOC_PATH);
             try {
                 await setDoc(docRef, currentData);
             } catch (e) { 
@@ -56,8 +70,9 @@
             }
         };
 
+        // Funções Globais para o UI
         window.updateConfig = (field, val) => {
-            currentData.config[field] = parseFloat(val) || val;
+            currentData.config[field] = (field === 'dataFinanciamento') ? val : (parseFloat(val) || 0);
             window.saveDataCloud();
             renderAll();
         };
@@ -81,7 +96,9 @@
         };
 
         window.removeMonth = (i) => {
-            if(confirm('Remover esta parcela?')) {
+            const modal = document.createElement('div');
+            // Simulação de confirmação sem alert()
+            if(confirm('Deseja remover esta parcela?')) {
                 currentData.payments.splice(i, 1);
                 window.saveDataCloud();
                 renderAll();
@@ -105,9 +122,9 @@
             renderAll();
         };
 
-        // Funções do Cofrinho
         window.openPoupancaModal = () => document.getElementById('poupanca-modal').classList.remove('hidden');
         window.closePoupancaModal = () => document.getElementById('poupanca-modal').classList.add('hidden');
+        
         window.addPoupancaItem = () => {
             const desc = document.getElementById('poup-desc').value;
             const valor = parseFloat(document.getElementById('poup-valor').value);
@@ -121,6 +138,7 @@
                 window.closePoupancaModal();
             }
         };
+
         window.removePoupanca = (i) => {
             currentData.poupanca.itens.splice(i, 1);
             window.saveDataCloud();
@@ -128,23 +146,31 @@
         };
 
         async function initApp() {
+            // REGRA 3: Auth antes de Queries
             try {
-                // Prioriza o token customizado se existir, senão entra anonimamente
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                    await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
                 } else { 
                     await signInAnonymously(auth); 
                 }
-            } catch (err) { console.error("Erro auth:", err); }
-            
+            } catch (err) { 
+                console.error("Auth falhou:", err);
+            }
+
             onAuthStateChanged(auth, (user) => { 
-                if (user) setupRealtimeSync(); 
+                if (user) {
+                    setupRealtimeSync(); 
+                }
             });
         }
 
         function setupRealtimeSync() {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
-            onSnapshot(docRef, (snapshot) => {
+            if (!auth.currentUser) return;
+            const docRef = doc(db, ...DOC_PATH);
+            
+            if (unsubscribeSync) unsubscribeSync();
+
+            unsubscribeSync = onSnapshot(docRef, (snapshot) => {
                 if (snapshot.exists()) { 
                     currentData = snapshot.data(); 
                 } else { 
@@ -153,40 +179,31 @@
                 }
                 renderAll();
             }, (error) => {
-                console.error("Erro no Sync:", error);
+                console.error("Erro Firestore (Permissões):", error);
+                document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-red-500 uppercase">Erro de Permissão: Contacte o Administrador</p>`;
             });
         }
 
-        initApp();
+        window.addEventListener('load', initApp);
     </script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Nunito:wght@400;600;800&display=swap');
-        
         body { font-family: 'Nunito', sans-serif; background-color: #fdf2f8; color: #4a5568; -webkit-tap-highlight-color: transparent; }
-        
-        /* Cor Roxo com Rosa */
         .bg-header { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); transition: all 1s ease; }
-        
         .house-anim { animation: float 3s ease-in-out infinite; filter: drop-shadow(0 0 12px rgba(255,255,255,0.6)); }
         @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.05); } }
-
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(168, 85, 247, 0.15); border-radius: 2rem; }
         .input-editable { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; width: 100%; text-align: center; font-size: 14px; }
         .input-editable:focus { background: white; border-color: #ec4899; outline: none; }
-        
-        .tab-previsto { color: #94a3b8; font-size: 0.7rem; }
-        .tab-pago { color: #1e293b; font-weight: 800; font-size: 0.8rem; }
-        
         .modal-bg { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); }
-
-        /* Ajustes mobile para botões */
         button:active { transform: scale(0.95); }
+        input[type="range"]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; background: #a855f7; border-radius: 50%; cursor: pointer; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body class="min-h-screen pb-24">
 
-    <!-- Modal do Cofrinho -->
+    <!-- Modal Cofrinho -->
     <div id="poupanca-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-bg">
         <div class="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl">
             <h3 class="text-xl font-black text-gray-800 mb-6 flex items-center gap-3">
@@ -208,130 +225,121 @@
             <div class="inline-block mb-3 house-anim">
                 <i class="fas fa-house-chimney-window text-6xl"></i>
             </div>
-            
             <h1 class="text-4xl font-black mb-1 tracking-tight">Nosso Apzinho 92</h1>
             <p class="text-white/90 font-bold italic mb-2">Thamirinha & Felipinho</p>
-            
             <p class="text-[11px] max-w-xs mx-auto text-white/80 leading-relaxed mb-4 font-medium italic">
                 "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará." — Salmos 37:5
             </p>
-
             <div class="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-[10px] font-black uppercase border border-white/30">
                 <i class="fas fa-hand-holding-heart text-pink-200"></i> Protegidos por Deus
             </div>
         </div>
-        
         <button onclick="document.getElementById('config-panel').classList.toggle('hidden')" class="absolute top-6 right-6 bg-white/10 p-3 rounded-2xl hover:bg-white/20 transition-all">
             <i class="fas fa-sliders-h"></i>
         </button>
     </header>
 
     <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-20">
-        
-        <!-- Frase de Status Dinâmica -->
         <div id="moto-phrase" class="bg-white/80 backdrop-blur py-3 px-6 rounded-2xl shadow-xl mb-6 text-center border-l-4 border-purple-500 animate-pulse">
-            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">Atualizando dados...</p>
+            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">A conectar ao sistema...</p>
         </div>
 
-        <!-- Dashboard Superior -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-pink-400">
-                <span class="text-[9px] font-black text-pink-400 uppercase mb-1">Entrada Paga</span>
-                <h2 class="text-lg font-black text-gray-800" id="dash-entrada">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border-b-4 border-pink-400">
+                <span class="text-[9px] font-black text-pink-400 uppercase">Entrada Paga</span>
+                <h2 class="text-lg font-black text-gray-800 mt-1" id="dash-entrada">R$ 0,00</h2>
                 <span class="text-[8px] font-bold text-gray-400" id="dash-falta-entrada"></span>
             </div>
-            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-blue-400">
-                <span class="text-[9px] font-black text-blue-400 uppercase mb-1">Obra Paga</span>
-                <h2 class="text-lg font-black text-gray-800" id="dash-obra">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border-b-4 border-blue-400">
+                <span class="text-[9px] font-black text-blue-400 uppercase">Obra Paga</span>
+                <h2 class="text-lg font-black text-gray-800 mt-1" id="dash-obra">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-yellow-400">
-                <span class="text-[9px] font-black text-yellow-600 uppercase mb-1">No Cofrinho</span>
-                <h2 class="text-lg font-black text-gray-800" id="dash-poupanca">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border-b-4 border-yellow-400">
+                <span class="text-[9px] font-black text-yellow-600 uppercase">No Cofrinho</span>
+                <h2 class="text-lg font-black text-gray-800 mt-1" id="dash-poupanca">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-purple-400">
-                <span class="text-[9px] font-black text-purple-500 uppercase mb-1">Financiamento</span>
-                <h2 class="text-lg font-black text-gray-800" id="dash-finan">R$ 0,00</h2>
-                <span class="text-[8px] font-black text-purple-300" id="finan-date">Início: Jun/2027</span>
+            <div class="bg-white p-5 card-shadow border-b-4 border-purple-400">
+                <span class="text-[9px] font-black text-purple-500 uppercase">Financiamento</span>
+                <h2 class="text-lg font-black text-gray-800 mt-1" id="dash-finan">R$ 0,00</h2>
+                <span class="text-[8px] font-black text-purple-300 uppercase" id="finan-date">Junho de 2028</span>
             </div>
         </div>
 
-        <!-- Painel de Configurações -->
-        <div id="config-panel" class="hidden bg-white rounded-[2.5rem] p-8 mb-8 card-shadow border border-purple-100">
+        <div id="config-panel" class="hidden bg-white rounded-[2.5rem] p-8 mb-8 card-shadow border border-purple-100 animate-in fade-in slide-in-from-top-4 duration-500">
             <h3 class="font-black text-gray-800 mb-6 flex items-center gap-2"><i class="fas fa-edit text-purple-500"></i> Ajustar Valores</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <label class="text-[10px] font-black uppercase text-gray-400">Total Financiamento</label>
-                    <input type="number" step="0.01" id="conf-finan" onchange="window.updateConfig('totalFinanciamento', this.value)" class="w-full bg-gray-50 p-3 rounded-xl border mt-1">
+                    <input type="number" step="0.01" id="conf-finan" onchange="window.updateConfig('totalFinanciamento', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 focus:ring-2 focus:ring-purple-400 outline-none">
                 </div>
                 <div>
                     <label class="text-[10px] font-black uppercase text-gray-400">Meta Entrada</label>
-                    <input type="number" step="0.01" id="conf-entrada" onchange="window.updateConfig('totalEntrada', this.value)" class="w-full bg-gray-50 p-3 rounded-xl border mt-1">
+                    <input type="number" step="0.01" id="conf-entrada" onchange="window.updateConfig('totalEntrada', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 focus:ring-2 focus:ring-purple-400 outline-none">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-gray-400">Ato Inicial</label>
-                    <input type="number" step="0.01" id="conf-ato" onchange="window.updateConfig('saldoInicial', this.value)" class="w-full bg-gray-50 p-3 rounded-xl border mt-1">
+                    <label class="text-[10px] font-black uppercase text-gray-400">Data Chaves/Finan.</label>
+                    <input type="text" id="conf-data-finan" onchange="window.updateConfig('dataFinanciamento', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 focus:ring-2 focus:ring-purple-400 outline-none">
                 </div>
                 <div class="md:col-span-3">
-                    <label class="text-[10px] font-black uppercase text-gray-400">Progresso Obra: <span id="conf-obra-label">0%</span></label>
-                    <input type="range" min="0" max="100" step="0.01" id="conf-obra-range" oninput="window.updateObraStatus(this.value)" class="w-full h-2 bg-purple-100 rounded-lg appearance-none accent-purple-600 mt-2">
+                    <label class="text-[10px] font-black uppercase text-gray-400 flex justify-between">Progresso Obra <span id="conf-obra-label" class="text-purple-600">0%</span></label>
+                    <input type="range" min="0" max="100" step="0.01" id="conf-obra-range" oninput="window.updateObraStatus(this.value)" class="w-full h-3 bg-purple-100 rounded-lg appearance-none mt-2">
                 </div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Pagamentos -->
             <div class="lg:col-span-2">
-                <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
-                    <div class="p-6 bg-purple-50/50 flex justify-between items-center">
-                        <h3 class="font-black text-gray-700 text-sm uppercase tracking-wider flex items-center gap-2"><i class="fas fa-money-bill-transfer text-purple-500"></i> Mensalidades</h3>
-                        <button onclick="addNewMonth()" class="bg-purple-600 text-white w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transition-all"><i class="fas fa-plus"></i></button>
+                <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-white">
+                    <div class="p-6 bg-purple-50/50 flex justify-between items-center border-b">
+                        <h3 class="font-black text-gray-700 text-xs uppercase tracking-wider flex items-center gap-2">
+                            <i class="fas fa-calendar-alt text-purple-500"></i> Fluxo de Pagamento
+                        </h3>
+                        <button onclick="addNewMonth()" class="bg-purple-600 text-white w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center hover:bg-purple-700 transition-all">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[500px]">
-                            <thead class="bg-gray-50 text-[8px] font-black uppercase text-gray-400 text-center">
+                        <table class="w-full min-w-[550px]">
+                            <thead class="bg-gray-50 text-[9px] font-black uppercase text-gray-400">
                                 <tr>
-                                    <th class="px-4 py-4 text-left">Referência</th>
-                                    <th class="px-2 py-4">Entrada (Prev)</th>
+                                    <th class="px-6 py-4 text-left">Mês / Referência</th>
                                     <th class="px-2 py-4">Entrada (Pago)</th>
-                                    <th class="px-2 py-4">Obra (Prev)</th>
                                     <th class="px-2 py-4">Obra (Pago)</th>
-                                    <th class="px-2 py-4 w-10"></th>
+                                    <th class="px-4 py-4 w-10"></th>
                                 </tr>
                             </thead>
-                            <tbody id="main-table-body" class="divide-y divide-gray-50"></tbody>
+                            <tbody id="main-table-body" class="divide-y divide-gray-100"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- Lista do Cofrinho -->
-                <div class="mt-8 bg-white rounded-[2.5rem] card-shadow p-6">
+                <div class="mt-8 bg-white rounded-[2.5rem] card-shadow p-8 border border-white">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="font-black text-sm text-gray-700 uppercase flex items-center gap-2"><i class="fas fa-piggy-bank text-yellow-500"></i> Nosso Cofrinho Extra</h3>
-                        <button onclick="openPoupancaModal()" class="text-xs font-black text-pink-500 bg-pink-50 px-4 py-2 rounded-full border border-pink-100">Guardar Mais</button>
+                        <h3 class="font-black text-xs text-gray-700 uppercase flex items-center gap-2">
+                            <i class="fas fa-piggy-bank text-yellow-500"></i> Nosso Cofrinho Extra
+                        </h3>
+                        <button onclick="openPoupancaModal()" class="text-[10px] font-black text-pink-500 bg-pink-50 px-4 py-2 rounded-full border border-pink-100">Guardar Agora</button>
                     </div>
-                    <div id="poupanca-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+                    <div id="poupanca-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
             </div>
 
-            <!-- Lateral -->
             <div class="space-y-8">
-                <!-- Gráfico Obra -->
-                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500">
-                    <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-4">Evolução do Apê</p>
-                    <div class="relative inline-flex items-center justify-center mb-6">
-                        <svg class="w-36 h-36">
-                            <circle class="text-gray-100" stroke-width="10" stroke="currentColor" fill="transparent" r="64" cx="72" cy="72"/>
-                            <circle id="obra-circle" class="text-purple-600 transition-all duration-1000" stroke-width="10" stroke-dasharray="402" stroke-dashoffset="402" stroke-linecap="round" stroke="currentColor" fill="transparent" r="64" cx="72" cy="72"/>
+                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500 flex flex-col items-center">
+                    <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-6">Sonho em Construção</p>
+                    <div class="relative inline-flex items-center justify-center">
+                        <svg class="w-40 h-40 transform -rotate-90">
+                            <circle class="text-gray-100" stroke-width="12" stroke="currentColor" fill="transparent" r="70" cx="80" cy="80"/>
+                            <circle id="obra-circle" class="text-purple-600 transition-all duration-1000" stroke-width="12" stroke-dasharray="440" stroke-dashoffset="440" stroke-linecap="round" stroke="currentColor" fill="transparent" r="70" cx="80" cy="80"/>
                         </svg>
-                        <span id="obra-perc-text" class="absolute text-3xl font-black text-purple-700">0%</span>
+                        <span id="obra-perc-text" class="absolute text-4xl font-black text-purple-700">0%</span>
                     </div>
-                    <div class="bg-purple-50 py-2 px-4 rounded-full text-[10px] font-black text-purple-600 uppercase">Ficando lindo!</div>
+                    <div class="mt-6 bg-purple-50 py-3 px-6 rounded-full text-[10px] font-black text-purple-600 uppercase">Cada tijolo é uma vitória</div>
                 </div>
 
-                <!-- Anuais/Balões -->
-                <div class="bg-white rounded-[2.5rem] card-shadow p-6">
-                    <h3 class="font-black text-[10px] uppercase text-gray-400 mb-4 tracking-widest">Parcelas Balão (Anuais)</h3>
-                    <div id="anuais-list" class="space-y-3"></div>
+                <div class="bg-white rounded-[2.5rem] card-shadow p-8 border border-white">
+                    <h3 class="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">Parcelas Balão (Anuais)</h3>
+                    <div id="anuais-list" class="space-y-4"></div>
                 </div>
             </div>
         </div>
@@ -339,39 +347,35 @@
 
     <script>
         const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-
+        
         const frasesObra = [
-            { min: 0, txt: "Fundação concluída! 🧱" },
-            { min: 10, txt: "Erguendo as paredes! ✨" },
-            { min: 25, txt: "Estrutura avançando! ❤️" },
-            { min: 50, txt: "Metade do sonho pronto! 🙏" },
-            { min: 75, txt: "Fase de acabamento! 🏡" },
-            { min: 90, txt: "Quase entregando as chaves! 🔥" },
-            { min: 100, txt: "NOSSO APÊ ESTÁ PRONTO! 🥂✨" }
+            { min: 0, txt: "O alicerce da nossa história! 🧱" },
+            { min: 10, txt: "As paredes da nossa felicidade! ✨" },
+            { min: 25, txt: "Estrutura crescendo com amor! ❤️" },
+            { min: 50, txt: "Metade do caminho, dobro da fé! 🙏" },
+            { min: 75, txt: "Acabamentos do nosso jeitinho! 🏡" },
+            { min: 90, txt: "Quase lá, as chaves estão a chegar! 🔥" },
+            { min: 100, txt: "BEM-VINDOS AO NOSSO LAR! 🥂✨" }
         ];
 
         function renderAll() {
             const data = window.getAppData();
             if(!data) return;
 
-            // Painel Config
+            document.getElementById('conf-obra-label').textContent = data.config.statusObra.toFixed(2) + '%';
+            document.getElementById('conf-obra-range').value = data.config.statusObra;
             document.getElementById('conf-finan').value = data.config.totalFinanciamento;
             document.getElementById('conf-entrada').value = data.config.totalEntrada;
-            document.getElementById('conf-ato').value = data.config.saldoInicial;
-            document.getElementById('conf-obra-range').value = data.config.statusObra;
-            document.getElementById('conf-obra-label').textContent = data.config.statusObra.toFixed(2) + '%';
+            document.getElementById('conf-data-finan').value = data.config.dataFinanciamento;
             
-            // Gráfico
             const perc = data.config.statusObra;
-            document.getElementById('obra-perc-text').textContent = perc.toFixed(1) + '%';
-            const offset = 402 - (402 * perc) / 100;
+            document.getElementById('obra-perc-text').textContent = Math.floor(perc) + '%';
+            const offset = 440 - (440 * perc) / 100;
             document.getElementById('obra-circle').style.strokeDashoffset = offset;
 
-            // Frase Status
             const frase = frasesObra.filter(f => perc >= f.min).pop();
-            document.getElementById('moto-phrase').innerHTML = `<p class="text-sm font-black text-purple-600 uppercase">${frase.txt}</p>`;
+            document.getElementById('moto-phrase').innerHTML = `<p class="text-xs font-black text-purple-600 uppercase tracking-wide">${frase.txt}</p>`;
 
-            // Tabelas e Somas
             const tbody = document.getElementById('main-table-body');
             tbody.innerHTML = '';
             let totalEntradaPaga = data.config.saldoInicial || 0;
@@ -380,37 +384,40 @@
             data.payments.forEach((p, i) => {
                 totalEntradaPaga += (p.entrada_pago || 0);
                 totalObraPaga += (p.evo_pago || 0);
-
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-gray-50/50 transition-colors";
                 tr.innerHTML = `
-                    <td class="px-4 py-4"><input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable font-bold text-gray-700 text-left"></td>
-                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.entrada_previsto}" onchange="window.updateField(${i}, 'entrada_previsto', this.value)" class="input-editable tab-previsto"></td>
-                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable tab-pago text-pink-600"></td>
-                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.evo_previsto}" onchange="window.updateField(${i}, 'evo_previsto', this.value)" class="input-editable tab-previsto"></td>
-                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable tab-pago text-blue-600"></td>
-                    <td class="px-2 py-4"><button onclick="window.removeMonth(${i})" class="text-gray-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button></td>
+                    <td class="px-6 py-5"><input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable font-bold text-gray-700 !text-left"></td>
+                    <td class="px-2 py-5 text-center">
+                        <div class="text-[9px] text-gray-400 font-bold mb-1">${fmt(p.entrada_previsto)}</div>
+                        <input type="number" step="0.01" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-600 font-black">
+                    </td>
+                    <td class="px-2 py-5 text-center">
+                         <div class="text-[9px] text-gray-400 font-bold mb-1">${fmt(p.evo_previsto)}</div>
+                        <input type="number" step="0.01" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-600 font-black">
+                    </td>
+                    <td class="px-4 py-5"><button onclick="window.removeMonth(${i})" class="text-gray-300 hover:text-red-500 transition-colors"><i class="fas fa-trash-alt"></i></button></td>
                 `;
                 tbody.appendChild(tr);
             });
 
-            // Anuais
             const anuaisList = document.getElementById('anuais-list');
             anuaisList.innerHTML = '';
             data.anuais.forEach((a, idx) => {
                 if(a.pago) totalEntradaPaga += a.valor;
                 const div = document.createElement('div');
-                div.className = `p-4 rounded-2xl border flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200 shadow-inner' : 'bg-gray-50 border-gray-100'}`;
+                div.className = `p-5 rounded-[1.5rem] border-2 transition-all flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'}`;
                 div.onclick = () => window.toggleAnual(idx);
                 div.innerHTML = `
-                    <div class="flex items-center gap-3"><i class="fas ${a.pago ? 'fa-check-circle text-green-500' : 'fa-circle text-gray-200'}"></i>
-                    <span class="text-[10px] font-black text-gray-700">${a.label}</span></div>
+                    <div class="flex items-center gap-4">
+                        <i class="fas ${a.pago ? 'fa-check-circle text-green-500' : 'fa-circle text-gray-200'} text-xl"></i>
+                        <span class="text-[11px] font-black text-gray-700">${a.label}</span>
+                    </div>
                     <span class="text-xs font-black ${a.pago ? 'text-green-600' : 'text-gray-400'}">${fmt(a.valor)}</span>
                 `;
                 anuaisList.appendChild(div);
             });
 
-            // Cofrinho
             const pList = document.getElementById('poupanca-list');
             pList.innerHTML = '';
             let totalPoup = 0;
@@ -418,24 +425,24 @@
             itens.forEach((it, idx) => {
                 totalPoup += it.valor;
                 const div = document.createElement('div');
-                div.className = "bg-white border border-yellow-100 p-4 rounded-2xl flex justify-between items-center shadow-sm";
+                div.className = "bg-white border border-yellow-100 p-5 rounded-[1.5rem] flex justify-between items-center shadow-sm";
                 div.innerHTML = `
-                    <div class="flex flex-col"><span class="text-[10px] font-black text-gray-700 uppercase">${it.desc}</span><span class="text-[8px] text-gray-400">${it.data}</span></div>
-                    <div class="flex items-center gap-3"><span class="text-xs font-black text-yellow-600">${fmt(it.valor)}</span>
+                    <div class="flex flex-col"><span class="text-[11px] font-black text-gray-700 uppercase leading-none mb-1">${it.desc}</span><span class="text-[9px] text-gray-400 font-bold">${it.data}</span></div>
+                    <div class="flex items-center gap-4"><span class="text-sm font-black text-yellow-600">${fmt(it.valor)}</span>
                     <button onclick="window.removePoupanca(${idx})" class="text-gray-200 hover:text-red-400"><i class="fas fa-times-circle"></i></button></div>
                 `;
                 pList.appendChild(div);
             });
 
-            // Dashboards
             document.getElementById('dash-entrada').textContent = fmt(totalEntradaPaga);
-            document.getElementById('dash-falta-entrada').textContent = `Faltam ${fmt(data.config.totalEntrada - totalEntradaPaga)}`;
+            document.getElementById('dash-falta-entrada').textContent = `FALTAM ${fmt(data.config.totalEntrada - totalEntradaPaga)}`;
             document.getElementById('dash-obra').textContent = fmt(totalObraPaga);
             document.getElementById('dash-poupanca').textContent = fmt(totalPoup);
             document.getElementById('dash-finan').textContent = fmt(data.config.totalFinanciamento);
-            document.getElementById('finan-date').textContent = `Início: ${data.config.dataFinanciamento}`;
+            document.getElementById('finan-date').textContent = data.config.dataFinanciamento;
         }
     </script>
 </body>
 </html>
+
 
