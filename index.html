@@ -21,7 +21,7 @@
         const db = getFirestore(app);
 
         let currentData = null;
-        const docId = 'apzinho-92-v5-purple-pink';
+        const docId = 'apzinho-92-v5-purple-pink'; // ID Fixo para persistência entre dispositivos
         let lastCelebratedPerc = 0;
 
         const defaultData = {
@@ -45,12 +45,15 @@
 
         window.getAppData = () => currentData;
 
+        // Função de salvamento com verificação de autenticação
         window.saveDataCloud = async function() {
             if (!auth.currentUser || !currentData) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
             try {
                 await setDoc(docRef, currentData);
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                console.error("Erro ao salvar:", e); 
+            }
         };
 
         window.updateConfig = (field, val) => {
@@ -96,6 +99,12 @@
             renderAll();
         };
 
+        window.toggleAnual = (idx) => {
+            currentData.anuais[idx].pago = !currentData.anuais[idx].pago;
+            window.saveDataCloud();
+            renderAll();
+        };
+
         // Funções do Cofrinho
         window.openPoupancaModal = () => document.getElementById('poupanca-modal').classList.remove('hidden');
         window.closePoupancaModal = () => document.getElementById('poupanca-modal').classList.add('hidden');
@@ -120,19 +129,31 @@
 
         async function initApp() {
             try {
+                // Prioriza o token customizado se existir, senão entra anonimamente
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
-                } else { await signInAnonymously(auth); }
-            } catch (err) { console.error(err); }
-            onAuthStateChanged(auth, (user) => { if (user) setupRealtimeSync(); });
+                } else { 
+                    await signInAnonymously(auth); 
+                }
+            } catch (err) { console.error("Erro auth:", err); }
+            
+            onAuthStateChanged(auth, (user) => { 
+                if (user) setupRealtimeSync(); 
+            });
         }
 
         function setupRealtimeSync() {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
             onSnapshot(docRef, (snapshot) => {
-                if (snapshot.exists()) { currentData = snapshot.data(); } 
-                else { currentData = defaultData; window.saveDataCloud(); }
+                if (snapshot.exists()) { 
+                    currentData = snapshot.data(); 
+                } else { 
+                    currentData = defaultData; 
+                    window.saveDataCloud(); 
+                }
                 renderAll();
+            }, (error) => {
+                console.error("Erro no Sync:", error);
             });
         }
 
@@ -142,25 +163,25 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Nunito:wght@400;600;800&display=swap');
         
-        body { font-family: 'Nunito', sans-serif; background-color: #fdf2f8; color: #4a5568; }
+        body { font-family: 'Nunito', sans-serif; background-color: #fdf2f8; color: #4a5568; -webkit-tap-highlight-color: transparent; }
         
         /* Cor Roxo com Rosa */
         .bg-header { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); transition: all 1s ease; }
-        
-        .is-finished .bg-header { background: linear-gradient(135deg, #b8860b 0%, #ffd700 50%, #b8860b 100%); background-size: 200% 200%; animation: shine 3s linear infinite; }
-        @keyframes shine { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
         
         .house-anim { animation: float 3s ease-in-out infinite; filter: drop-shadow(0 0 12px rgba(255,255,255,0.6)); }
         @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.05); } }
 
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(168, 85, 247, 0.15); border-radius: 2rem; }
-        .input-editable { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; width: 100%; text-align: center; }
+        .input-editable { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; width: 100%; text-align: center; font-size: 14px; }
         .input-editable:focus { background: white; border-color: #ec4899; outline: none; }
         
-        .tab-previsto { color: #94a3b8; font-size: 0.75rem; }
-        .tab-pago { color: #1e293b; font-weight: 800; font-size: 0.85rem; }
+        .tab-previsto { color: #94a3b8; font-size: 0.7rem; }
+        .tab-pago { color: #1e293b; font-weight: 800; font-size: 0.8rem; }
         
         .modal-bg { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); }
+
+        /* Ajustes mobile para botões */
+        button:active { transform: scale(0.95); }
     </style>
 </head>
 <body class="min-h-screen pb-24">
@@ -177,7 +198,7 @@
             </div>
             <div class="flex gap-3 mt-8">
                 <button onclick="closePoupancaModal()" class="flex-1 py-4 font-bold text-gray-400">Cancelar</button>
-                <button onclick="addPoupancaItem()" class="flex-1 py-4 font-black text-white bg-pink-500 rounded-2xl shadow-lg active:scale-95 transition-all">Guardar</button>
+                <button onclick="addPoupancaItem()" class="flex-1 py-4 font-black text-white bg-pink-500 rounded-2xl shadow-lg transition-all">Guardar</button>
             </div>
         </div>
     </div>
@@ -209,7 +230,7 @@
         
         <!-- Frase de Status Dinâmica -->
         <div id="moto-phrase" class="bg-white/80 backdrop-blur py-3 px-6 rounded-2xl shadow-xl mb-6 text-center border-l-4 border-purple-500 animate-pulse">
-            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">Calculando progresso...</p>
+            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">Atualizando dados...</p>
         </div>
 
         <!-- Dashboard Superior -->
@@ -263,10 +284,10 @@
                 <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
                     <div class="p-6 bg-purple-50/50 flex justify-between items-center">
                         <h3 class="font-black text-gray-700 text-sm uppercase tracking-wider flex items-center gap-2"><i class="fas fa-money-bill-transfer text-purple-500"></i> Mensalidades</h3>
-                        <button onclick="addNewMonth()" class="bg-purple-600 text-white w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center hover:scale-110 active:scale-90 transition-all"><i class="fas fa-plus"></i></button>
+                        <button onclick="addNewMonth()" class="bg-purple-600 text-white w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center transition-all"><i class="fas fa-plus"></i></button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full">
+                        <table class="w-full min-w-[500px]">
                             <thead class="bg-gray-50 text-[8px] font-black uppercase text-gray-400 text-center">
                                 <tr>
                                     <th class="px-4 py-4 text-left">Referência</th>
@@ -282,7 +303,7 @@
                     </div>
                 </div>
 
-                <!-- Lista do Cofrinho (Abaixo da tabela) -->
+                <!-- Lista do Cofrinho -->
                 <div class="mt-8 bg-white rounded-[2.5rem] card-shadow p-6">
                     <div class="flex justify-between items-center mb-6">
                         <h3 class="font-black text-sm text-gray-700 uppercase flex items-center gap-2"><i class="fas fa-piggy-bank text-yellow-500"></i> Nosso Cofrinho Extra</h3>
@@ -295,7 +316,7 @@
             <!-- Lateral -->
             <div class="space-y-8">
                 <!-- Gráfico Obra -->
-                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500" id="obra-card">
+                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500">
                     <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-4">Evolução do Apê</p>
                     <div class="relative inline-flex items-center justify-center mb-6">
                         <svg class="w-36 h-36">
@@ -333,27 +354,24 @@
             const data = window.getAppData();
             if(!data) return;
 
-            const isFinished = data.config.statusObra >= 100;
-            document.body.classList.toggle('is-finished', isFinished);
-            
-            // Configurar campos do painel
+            // Painel Config
             document.getElementById('conf-finan').value = data.config.totalFinanciamento;
             document.getElementById('conf-entrada').value = data.config.totalEntrada;
             document.getElementById('conf-ato').value = data.config.saldoInicial;
             document.getElementById('conf-obra-range').value = data.config.statusObra;
             document.getElementById('conf-obra-label').textContent = data.config.statusObra.toFixed(2) + '%';
             
-            // Status Gráfico
+            // Gráfico
             const perc = data.config.statusObra;
             document.getElementById('obra-perc-text').textContent = perc.toFixed(1) + '%';
             const offset = 402 - (402 * perc) / 100;
             document.getElementById('obra-circle').style.strokeDashoffset = offset;
 
-            // Frase de Status
+            // Frase Status
             const frase = frasesObra.filter(f => perc >= f.min).pop();
             document.getElementById('moto-phrase').innerHTML = `<p class="text-sm font-black text-purple-600 uppercase">${frase.txt}</p>`;
 
-            // Tabela de Pagamentos
+            // Tabelas e Somas
             const tbody = document.getElementById('main-table-body');
             tbody.innerHTML = '';
             let totalEntradaPaga = data.config.saldoInicial || 0;
@@ -383,7 +401,7 @@
                 if(a.pago) totalEntradaPaga += a.valor;
                 const div = document.createElement('div');
                 div.className = `p-4 rounded-2xl border flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200 shadow-inner' : 'bg-gray-50 border-gray-100'}`;
-                div.onclick = () => { data.anuais[idx].pago = !a.pago; window.saveDataCloud(); renderAll(); };
+                div.onclick = () => window.toggleAnual(idx);
                 div.innerHTML = `
                     <div class="flex items-center gap-3"><i class="fas ${a.pago ? 'fa-check-circle text-green-500' : 'fa-circle text-gray-200'}"></i>
                     <span class="text-[10px] font-black text-gray-700">${a.label}</span></div>
@@ -420,3 +438,4 @@
     </script>
 </body>
 </html>
+
