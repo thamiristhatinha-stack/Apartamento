@@ -25,19 +25,62 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'apartamento-d328e-prod';
         const docPath = ["artifacts", appId, "public", "data", "finance_tracker", "finance-main"];
 
+        // Cronograma exato extraído do documento CAIXA
+        const cronogramaOficial = [
+            { etapa: 1, data: '26/09/2025', percMes: 4.20, percAcum: 4.20, pago: true, valorPago: 184.57 },
+            { etapa: 2, data: '21/10/2025', percMes: 2.10, percAcum: 6.30, pago: true, valorPago: 224.90 },
+            { etapa: 3, data: '21/11/2025', percMes: 1.01, percAcum: 7.31, pago: true, valorPago: 274.23 },
+            { etapa: 4, data: '22/12/2025', percMes: 1.88, percAcum: 9.19, pago: true, valorPago: 287.42 },
+            { etapa: 5, data: '22/01/2026', percMes: 0.01, percAcum: 9.20 },
+            { etapa: 6, data: '22/02/2026', percMes: 3.50, percAcum: 12.70 },
+            { etapa: 7, data: '22/03/2026', percMes: 2.00, percAcum: 14.70 },
+            { etapa: 8, data: '22/04/2026', percMes: 3.20, percAcum: 17.90 },
+            { etapa: 9, data: '22/05/2026', percMes: 6.50, percAcum: 24.40 },
+            { etapa: 10, data: '22/06/2026', percMes: 7.40, percAcum: 31.80 },
+            { etapa: 11, data: '22/07/2026', percMes: 6.10, percAcum: 37.90 },
+            { etapa: 12, data: '22/08/2026', percMes: 2.10, percAcum: 40.00 },
+            { etapa: 13, data: '22/09/2026', percMes: 2.70, percAcum: 42.70 },
+            { etapa: 14, data: '22/10/2026', percMes: 2.70, percAcum: 45.40 },
+            { etapa: 15, data: '22/11/2026', percMes: 3.20, percAcum: 48.60 },
+            { etapa: 16, data: '22/12/2026', percMes: 3.70, percAcum: 52.30 },
+            { etapa: 17, data: '22/01/2027', percMes: 3.30, percAcum: 55.60 },
+            { etapa: 18, data: '22/02/2027', percMes: 3.50, percAcum: 59.10 },
+            { etapa: 19, data: '22/03/2027', percMes: 4.25, percAcum: 63.35 },
+            { etapa: 20, data: '22/04/2027', percMes: 4.25, percAcum: 67.60 },
+            { etapa: 21, data: '23/05/2027', percMes: 4.50, percAcum: 72.10 },
+            { etapa: 22, data: '22/06/2027', percMes: 3.50, percAcum: 75.60 },
+            { etapa: 23, data: '22/07/2027', percMes: 4.65, percAcum: 80.25 },
+            { etapa: 24, data: '22/08/2027', percMes: 4.00, percAcum: 84.25 },
+            { etapa: 25, data: '22/09/2027', percMes: 2.35, percAcum: 86.60 },
+            { etapa: 26, data: '22/10/2027', percMes: 1.15, percAcum: 87.75 },
+            { etapa: 27, data: '22/11/2027', percMes: 1.20, percAcum: 88.95 },
+            { etapa: 28, data: '22/12/2027', percMes: 1.10, percAcum: 90.05 },
+            { etapa: 29, data: '24/01/2028', percMes: 1.00, percAcum: 91.05 },
+            { etapa: 30, data: '22/02/2028', percMes: 0.75, percAcum: 91.80 },
+            { etapa: 31, data: '22/03/2028', percMes: 0.50, percAcum: 92.30 },
+            { etapa: 32, data: '24/04/2028', percMes: 0.65, percAcum: 92.95 },
+            { etapa: 33, data: '22/05/2028', percMes: 0.80, percAcum: 93.75 },
+            { etapa: 34, data: '22/06/2028', percMes: 0.65, percAcum: 94.40 },
+            { etapa: 35, data: '24/07/2028', percMes: 0.60, percAcum: 95.00 },
+            { etapa: 36, data: '22/08/2028', percMes: 5.00, percAcum: 100.00 }
+        ];
+
         let firebaseApp, auth, db;
+        
         const defaultData = {
             config: {
+                valorApartamento: 255883.47,
                 totalFinanciamento: 218149.62,
                 totalEntrada: 37733.85,
-                saldoInicial: 4999.90, 
-                statusObra: 7.43
+                saldoInicial: 4999.90
             },
-            payments: [
-                { month: 'Janeiro', entrada_previsto: 1078.11, entrada_pago: 1078.11, evo_previsto: 150.00, evo_pago: 150.00 }
-            ],
+            payments: cronogramaOficial.map(item => ({
+                month: item.data.split('/')[1] + '/' + item.data.split('/')[2].slice(-2),
+                entrada_pago: 0,
+                evo_pago: item.valorPago || 0
+            })),
             anuais: [
-                { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500.00, pago: false },
+                { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500.00, pago: true },
                 { id: 2, label: 'Anual 2 (Dez/26)', valor: 2500.00, pago: false },
                 { id: 3, label: 'Anual 3 (Dez/27)', valor: 2500.00, pago: false }
             ],
@@ -45,49 +88,19 @@
         };
 
         let currentData = defaultData;
-        let lastPerc = 0;
+        let showAllEvo = false;
+        let showAllEntrada = false;
 
         window.saveDataCloud = async function() {
             if (!auth?.currentUser) return;
-            try { 
-                await setDoc(doc(db, ...docPath), currentData); 
-            } catch (e) { console.error(e); }
+            try { await setDoc(doc(db, ...docPath), currentData); } catch (e) { console.error(e); }
         };
 
-        window.updateObraStatus = (val) => {
-            const perc = parseFloat(val);
-            currentData.config.statusObra = perc;
-            if (perc > lastPerc && (Math.floor(perc) % 10 === 0 || perc === 100)) {
-                confetti({ 
-                    particleCount: 150, 
-                    spread: 80, 
-                    origin: { y: 0.6 },
-                    colors: ['#ec4899', '#a855f7', '#ffffff']
-                });
-            }
-            lastPerc = perc;
-            window.saveDataCloud();
-            renderAll();
-        };
+        window.toggleShowAllEvo = () => { showAllEvo = !showAllEvo; renderAll(); };
+        window.toggleShowAllEntrada = () => { showAllEntrada = !showAllEntrada; renderAll(); };
 
         window.updateField = (i, field, val) => {
-            if (field === 'month') currentData.payments[i][field] = val;
-            else currentData.payments[i][field] = parseFloat(val) || 0;
-            window.saveDataCloud();
-            renderAll();
-        };
-
-        window.addNewMonth = () => {
-            currentData.payments.push({ month: 'Novo Mês', entrada_previsto: 0, entrada_pago: 0, evo_previsto: 0, evo_pago: 0 });
-            window.saveDataCloud();
-            renderAll();
-        };
-
-        window.toggleAnual = (idx) => {
-            currentData.anuais[idx].pago = !currentData.anuais[idx].pago;
-            if(currentData.anuais[idx].pago) {
-                confetti({ particleCount: 40, scalar: 2, shapes: ['circle'], colors: ['#fbbf24'] });
-            }
+            currentData.payments[i][field] = parseFloat(val) || 0;
             window.saveDataCloud();
             renderAll();
         };
@@ -98,27 +111,30 @@
             renderAll();
         };
 
+        window.toggleAnual = (idx) => {
+            currentData.anuais[idx].pago = !currentData.anuais[idx].pago;
+            if(currentData.anuais[idx].pago) confetti({ particleCount: 40, colors: ['#fbbf24'] });
+            window.saveDataCloud();
+            renderAll();
+        };
+
         async function initApp() {
             try {
                 firebaseApp = initializeApp(firebaseConfig);
                 auth = getAuth(firebaseApp);
                 db = getFirestore(firebaseApp);
                 const login = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else { await signInAnonymously(auth); }
-                    } catch (err) { await signInAnonymously(auth); }
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else { await signInAnonymously(auth); }
                 };
                 await login();
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         onSnapshot(doc(db, ...docPath), (snap) => {
-                            if (snap.exists()) {
-                                currentData = snap.data();
-                                renderAll();
-                            } else { window.saveDataCloud(); }
-                        }, (err) => console.error("Firestore error:", err));
+                            if (snap.exists()) { currentData = snap.data(); renderAll(); }
+                            else { window.saveDataCloud(); }
+                        }, (err) => console.error(err));
                     }
                 });
             } catch (e) { console.error(e); }
@@ -126,390 +142,294 @@
 
         window.addEventListener('load', initApp);
         window.getAppData = () => currentData;
+        window.getCronograma = () => cronogramaOficial;
+        window.getShowStates = () => ({ showAllEvo, showAllEntrada });
     </script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Nunito:wght@400;600;800&display=swap');
-        
-        :root {
-            --pink-primary: #ec4899;
-            --purple-primary: #a855f7;
-        }
-
-        body { 
-            font-family: 'Nunito', sans-serif; 
-            background-color: #fff5f7; 
-            background-image: url("data:image/svg+xml,%3Csvg width='52' height='26' viewBox='0 0 52 26' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23fbcfe8' fill-opacity='0.3'%3E%3Cpath d='M10 10c0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6h2c0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4v2c-3.314 0-6-2.686-6-6 0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6zm25.464-1.95l8.486 8.486-1.414 1.414-8.486-8.486 1.414-1.414z' /%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            color: #4a5568; 
-            overflow-x: hidden;
-        }
-
+        :root { --pink-primary: #ec4899; --purple-primary: #a855f7; }
+        body { font-family: 'Nunito', sans-serif; background-color: #fff5f7; color: #4a5568; overflow-x: hidden; }
         .bg-header { background: linear-gradient(135deg, var(--purple-primary) 0%, var(--pink-primary) 100%); }
-        
-        .card-shadow { 
-            box-shadow: 0 10px 30px -5px rgba(168, 85, 247, 0.15); 
-            border-radius: 1.5rem; 
-            transition: transform 0.3s ease;
-        }
-        .card-shadow:active { transform: scale(0.98); }
-
-        .item-glow { 
-            filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.8)); 
-            animation: floating 3s ease-in-out infinite; 
-        }
-        
-        @keyframes floating {
-            0%, 100% { transform: translateY(0) scale(1); }
-            50% { transform: translateY(-8px) scale(1.05); }
-        }
-
-        .input-editable { 
-            background: rgba(255,255,255,0.5); 
-            border: 1px solid #fee2e2; 
-            border-radius: 10px; 
-            padding: 6px; 
-            width: 100%; 
-            text-align: center; 
-            font-size: 13px; 
-            font-weight: 800;
-            transition: all 0.2s;
-        }
-        .input-editable:focus { background: white; border-color: var(--pink-primary); outline: none; box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1); }
-
-        .progress-container { 
-            height: 48px; 
-            background: #fdf2f8; 
-            border-radius: 16px; 
-            overflow: hidden; 
-            position: relative; 
-            border: 3px solid #fce7f3; 
-        }
-        .progress-fill { 
-            height: 100%; 
-            background: linear-gradient(90deg, var(--pink-primary), var(--purple-primary)); 
-            box-shadow: 0 0 20px rgba(236, 72, 153, 0.4);
-            transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1); 
-        }
-
-        .check-glow { 
-            color: #fbbf24; 
-            text-shadow: 0 0 10px rgba(251, 191, 36, 0.6); 
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        .floating-nav {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(8px);
-            padding: 8px 20px;
-            border-radius: 30px;
-            z-index: 100;
-            display: flex;
-            gap: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        }
-        .floating-nav a { color: white; font-size: 18px; opacity: 0.6; transition: 0.2s; }
-        .floating-nav a:hover { opacity: 1; transform: scale(1.2); }
+        .card-shadow { box-shadow: 0 10px 30px -5px rgba(168, 85, 247, 0.15); border-radius: 1.5rem; }
+        .input-editable { background: rgba(255,255,255,0.6); border: 1px solid #fee2e2; border-radius: 10px; padding: 6px; width: 100%; text-align: center; font-size: 13px; font-weight: 800; color: #333; }
+        .progress-container { height: 48px; background: #fdf2f8; border-radius: 16px; overflow: hidden; border: 3px solid #fce7f3; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--pink-primary), var(--purple-primary)); transition: width 1s ease; }
+        .floating-nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); padding: 8px 20px; border-radius: 30px; z-index: 100; display: flex; gap: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .floating-nav a { color: white; font-size: 18px; opacity: 0.6; }
+        .medido-badge { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; }
+        .previsto-badge { background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; }
+        .btn-toggle { font-size: 10px; font-weight: 900; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; transition: all 0.2s; }
+        .item-glow { filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.9)); }
     </style>
 </head>
 <body class="pb-24">
 
-    <!-- Header Premium -->
-    <header class="bg-header text-white pb-20 pt-12 px-4 rounded-b-[4rem] text-center shadow-2xl relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-            <i class="fas fa-heart absolute top-10 left-10 text-4xl rotate-12"></i>
-            <i class="fas fa-heart absolute top-20 right-20 text-2xl -rotate-12"></i>
-            <i class="fas fa-star absolute bottom-10 left-1/4 text-3xl"></i>
-        </div>
-
-        <!-- Ícones de Apartamento e Casal Pequeninho -->
-        <div class="mb-6 relative inline-flex items-center justify-center gap-4">
+    <header class="bg-header text-white pb-20 pt-12 px-4 rounded-b-[4rem] text-center shadow-2xl relative">
+        <div class="mb-4 flex justify-center items-center gap-4">
+            <div class="relative">
+                <i class="fas fa-user-friends text-5xl item-glow"></i>
+                <i class="fas fa-sparkles absolute -top-2 -right-2 text-yellow-200 animate-pulse"></i>
+            </div>
             <div class="relative">
                 <i class="fas fa-building text-6xl text-white item-glow"></i>
-            </div>
-            <div class="flex flex-col items-center">
-                <div class="flex gap-1">
-                    <i class="fas fa-user text-2xl text-white item-glow"></i>
-                    <i class="fas fa-user text-2xl text-white item-glow"></i>
-                </div>
-                <i class="fas fa-heart text-[10px] text-white/80 animate-pulse mt-1"></i>
+                <i class="fas fa-star absolute -top-1 -left-2 text-white animate-bounce text-xs"></i>
             </div>
         </div>
+        <h1 class="text-4xl font-black mb-1">Apzinho 92</h1>
+        <p class="text-white/90 text-[10px] font-black uppercase mb-6 tracking-[0.2em]">Thamirinha & Felipinho</p>
         
-        <h1 class="text-4xl font-black tracking-tight mb-1">Apzinho 92</h1>
-        <p class="text-white/90 text-sm font-extrabold tracking-widest uppercase mb-6 flex items-center justify-center gap-2">
-            <span class="w-8 h-[2px] bg-white/30"></span>
-            Thamirinha & Felipinho
-            <span class="w-8 h-[2px] bg-white/30"></span>
-        </p>
-        
-        <div class="bg-white/10 backdrop-blur-md mx-auto max-w-sm py-4 px-8 rounded-[2rem] border border-white/30 shadow-inner">
-            <p class="text-xs md:text-sm font-bold leading-relaxed italic text-white">
-                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará."
-            </p>
-            <p class="text-[10px] font-black uppercase mt-2 tracking-[0.2em] text-white/70">
-                (Salmos 37:5)
+        <div class="bg-white/10 backdrop-blur-md mx-auto max-w-sm py-4 px-6 rounded-[2rem] border border-white/20">
+            <p class="text-[11px] font-extrabold text-white leading-tight">
+                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará."<br>
+                <span class="text-[9px] opacity-80">(Salmos 37:5)</span>
             </p>
         </div>
     </header>
 
     <main class="max-w-5xl mx-auto px-4 -mt-12 space-y-8 relative z-10">
         
-        <!-- Dashboard Grelha 2x2 -->
+        <!-- Dashboards Principais -->
         <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div class="bg-white p-5 card-shadow glass-card border-b-4 border-pink-400 group">
-                <div class="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center mb-3 group-hover:rotate-12 transition-transform">
-                    <i class="fas fa-hand-holding-heart text-pink-500 text-lg"></i>
-                </div>
-                <p class="text-[10px] font-black text-pink-400 uppercase tracking-tighter">Entrada Paga</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-entrada">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border-b-4 border-pink-400">
+                <p class="text-[10px] font-black text-pink-400 uppercase">Total Pago</p>
+                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-total-pago">R$ 0,00</h2>
             </div>
-            
-            <div class="bg-white p-5 card-shadow glass-card border-b-4 border-blue-400 group">
-                <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:rotate-12 transition-transform">
-                    <i class="fas fa-tools text-blue-500 text-lg"></i>
-                </div>
-                <p class="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Evolução Obra</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-obra">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border-b-4 border-blue-400">
+                <p class="text-[10px] font-black text-blue-400 uppercase">Evolução Obra</p>
+                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-evo-pago">R$ 0,00</h2>
             </div>
-
-            <div class="bg-white p-5 card-shadow glass-card border-b-4 border-yellow-400 group">
-                <div class="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center mb-3 group-hover:rotate-12 transition-transform">
-                    <i class="fas fa-coins text-yellow-600 text-lg"></i>
-                </div>
-                <p class="text-[10px] font-black text-yellow-600 uppercase tracking-tighter">No Cofrinho</p>
+            <div class="bg-white p-5 card-shadow border-b-4 border-yellow-400">
+                <p class="text-[10px] font-black text-yellow-600 uppercase">No Cofrinho</p>
                 <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-poupanca">R$ 0,00</h2>
             </div>
-
-            <div class="bg-white p-5 card-shadow glass-card border-b-4 border-purple-500 group">
-                <div class="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center mb-3 group-hover:rotate-12 transition-transform">
-                    <i class="fas fa-key text-purple-500 text-lg"></i>
-                </div>
-                <p class="text-[10px] font-black text-purple-400 uppercase tracking-tighter">Financiamento</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-finan">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow border-b-4 border-purple-500">
+                <p class="text-[10px] font-black text-purple-400 uppercase">Saldo Devedor</p>
+                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-saldo-devedor">R$ 0,00</h2>
             </div>
         </div>
 
-        <!-- Progresso da Obra -->
-        <section id="obra" class="bg-white card-shadow p-8 border border-purple-100 relative overflow-hidden">
-            <div class="flex flex-col md:flex-row justify-between items-center md:items-end mb-6 gap-4">
-                <div class="text-center md:text-left">
-                    <h3 class="font-black text-gray-700 text-sm uppercase flex items-center justify-center md:justify-start gap-2 mb-2">
-                        <i class="fas fa-city text-purple-500"></i> Progresso do Nosso Sonho
-                    </h3>
-                    <div class="bg-purple-50 px-4 py-2 rounded-full border border-purple-100">
-                        <p id="obra-frase" class="text-[11px] font-extrabold text-purple-600">"Deus é fiel em cada tijolo!"</p>
-                    </div>
+        <!-- Progresso e Detalhes da Obra -->
+        <section id="obra" class="bg-white card-shadow p-8 border border-purple-100">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="font-black text-gray-700 text-sm uppercase mb-1">Status Oficial da Obra</h3>
+                    <p class="text-[10px] text-gray-400" id="resumo-medicao">Medido em Dez/25: 9.19%</p>
                 </div>
-                <div id="obra-perc" class="text-5xl font-black text-purple-600 drop-shadow-sm">0%</div>
+                <div id="obra-perc" class="text-4xl font-black text-purple-600">0%</div>
             </div>
-            
-            <div class="progress-container mb-8">
+            <div class="progress-container mb-6">
                 <div id="obra-bar" class="progress-fill" style="width: 0%"></div>
             </div>
-
-            <div class="relative px-2">
-                <input type="range" id="range-obra" min="0" max="100" step="0.1" oninput="window.updateObraStatus(this.value)" class="w-full accent-purple-600 h-3 bg-gray-100 rounded-lg appearance-none cursor-pointer">
-                <div class="flex justify-between mt-2 text-[10px] font-black text-gray-300 uppercase tracking-widest">
-                    <span>Início</span>
-                    <span>Entrega das Chaves 🔑</span>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100">
+                <div class="space-y-3">
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-gray-400 uppercase">Apartamento:</span>
+                        <span class="text-gray-700" id="detalhe-valor-ap">R$ 0,00</span>
+                    </div>
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-gray-400 uppercase">Financiado:</span>
+                        <span class="text-purple-600" id="detalhe-valor-finan">R$ 0,00</span>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-gray-400 uppercase">Total Entrada:</span>
+                        <span class="text-pink-500" id="detalhe-valor-entrada">R$ 0,00</span>
+                    </div>
+                    <div class="flex justify-between text-xs font-bold">
+                        <span class="text-gray-400 uppercase">Restante Entrada:</span>
+                        <span class="text-red-500" id="detalhe-restante-entrada">R$ 0,00</span>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- Parcelas Anuais (Balão) -->
+        <!-- Controle de Entrada -->
+        <section id="entrada" class="bg-white card-shadow overflow-hidden border border-pink-50">
+            <div class="p-5 bg-gradient-to-r from-pink-50 to-white flex justify-between items-center border-b border-pink-100">
+                <div class="flex items-center gap-3">
+                    <h4 class="font-black text-pink-600 text-[11px] uppercase tracking-wider">Controle de Entrada</h4>
+                    <button onclick="window.toggleShowAllEntrada()" id="btn-show-entrada" class="btn-toggle text-pink-500 bg-pink-100/50 hover:bg-pink-100">
+                        Ver mais
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-center">
+                    <thead class="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                        <tr>
+                            <th class="p-4 text-left pl-8">Mês</th>
+                            <th class="p-4">Pago</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-entrada" class="divide-y divide-gray-50"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Evolução de Obra -->
+        <section id="evo" class="bg-white card-shadow overflow-hidden border border-blue-50">
+            <div class="p-5 bg-gradient-to-r from-blue-50 to-white flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <h4 class="font-black text-blue-600 text-[11px] uppercase tracking-wider">Evolução de Obra</h4>
+                    <button onclick="window.toggleShowAllEvo()" id="btn-show-evo" class="btn-toggle text-blue-500 bg-blue-100/50 hover:bg-blue-100">
+                        Ver mais
+                    </button>
+                </div>
+                <div class="text-[9px] text-blue-400 font-bold bg-blue-50 px-2 py-1 rounded">PROJEÇÃO BASEADA NO PAGO</div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-center">
+                    <thead class="bg-gray-50 text-[10px] uppercase text-gray-400 font-black">
+                        <tr>
+                            <th class="p-4 text-left pl-8">Etapa/Data</th>
+                            <th class="p-4">% Etapa</th>
+                            <th class="p-4">Valor</th>
+                            <th class="p-4">Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-obra-list" class="divide-y divide-gray-50"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Anuais -->
         <section id="anuais" class="bg-white card-shadow p-6">
-            <h3 class="font-black text-[11px] uppercase text-gray-400 mb-6 tracking-widest flex items-center justify-center md:justify-start gap-2">
-                <i class="fas fa-calendar-alt text-pink-500"></i> Parcelas Anuais (Reforços)
-            </h3>
+            <h3 class="font-black text-[11px] uppercase text-gray-400 mb-6 tracking-widest text-center">Parcelas Anuais</h3>
             <div id="anuais-list" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
         </section>
 
-        <!-- Tabelas de Controle -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- Entrada -->
-            <section id="entrada" class="bg-white card-shadow overflow-hidden border border-pink-50">
-                <div class="p-5 bg-gradient-to-r from-pink-50 to-white flex justify-between items-center border-b border-pink-100">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-wallet text-pink-500"></i>
-                        <h4 class="font-black text-pink-600 text-[11px] uppercase tracking-wider">Controle de Entrada</h4>
-                    </div>
-                    <button onclick="addNewMonth()" class="bg-pink-500 hover:bg-pink-600 text-white w-8 h-8 rounded-xl text-sm shadow-lg transition-transform active:scale-90 flex items-center justify-center">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-center">
-                        <thead class="bg-gray-50/50 text-[10px] uppercase text-gray-400 font-black">
-                            <tr>
-                                <th class="p-4 text-left">Mês</th>
-                                <th class="p-4">Previsto</th>
-                                <th class="p-4">Pago</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-entrada" class="divide-y divide-gray-50"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Evolução de Obra -->
-            <section id="evo" class="bg-white card-shadow overflow-hidden border border-blue-50">
-                <div class="p-5 bg-gradient-to-r from-blue-50 to-white flex justify-between items-center border-b border-blue-100">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-chart-line text-blue-500"></i>
-                        <h4 class="font-black text-blue-600 text-[11px] uppercase tracking-wider">Evolução de Obra</h4>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-center">
-                        <thead class="bg-gray-50/50 text-[10px] uppercase text-gray-400 font-black">
-                            <tr>
-                                <th class="p-4 text-left pl-8">Mês</th>
-                                <th class="p-4">Estimado</th>
-                                <th class="p-4">Pago</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-obra-list" class="divide-y divide-gray-50"></tbody>
-                    </table>
-                </div>
-            </section>
-        </div>
-
-        <!-- Cofrinho Integrado -->
-        <section id="cofrinho" class="bg-white card-shadow p-8 border-2 border-dashed border-yellow-300 relative">
-            <div class="absolute -top-4 -right-4 bg-yellow-400 text-white p-3 rounded-2xl rotate-12 shadow-lg">
-                <i class="fas fa-piggy-bank text-xl"></i>
-            </div>
-            
-            <h3 class="font-black text-gray-700 text-sm uppercase mb-6 flex items-center gap-2">
-                Gestão do Nosso Cofrinho Extra
-            </h3>
-            
-            <div class="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-3xl border border-yellow-100">
-                <label class="text-[10px] font-black uppercase text-yellow-700 block mb-2 tracking-widest">Valor Total Guardado para o AP</label>
-                <div class="flex items-center gap-3">
-                    <span class="text-3xl font-black text-yellow-600">R$</span>
-                    <input type="number" id="input-cofrinho" step="0.01" onchange="window.updateCofrinho(this.value)" class="w-full text-4xl font-black bg-transparent text-yellow-700 focus:outline-none placeholder-yellow-200" placeholder="0,00">
+        <!-- Cofrinho -->
+        <section id="cofrinho" class="bg-white card-shadow p-8 border-2 border-dashed border-yellow-300">
+            <h3 class="font-black text-gray-700 text-sm uppercase mb-4">Poupanca do Apzinho</h3>
+            <div class="bg-yellow-50 p-6 rounded-3xl flex items-center gap-4 mb-4">
+                <i class="fas fa-piggy-bank text-yellow-500 text-3xl"></i>
+                <div class="flex-1">
+                    <input type="number" id="input-cofrinho" step="0.01" onchange="window.updateCofrinho(this.value)" class="w-full text-3xl font-black bg-transparent text-yellow-700 border-b-2 border-yellow-200 focus:outline-none" placeholder="0,00">
                 </div>
             </div>
-            <div class="mt-6 flex items-center justify-center gap-3 text-gray-400 italic font-bold text-xs">
-                <i class="fas fa-quote-left opacity-20"></i>
-                "O pouco com Deus torna-se muito."
-                <i class="fas fa-quote-right opacity-20"></i>
+            <div class="text-center">
+                <p class="text-xs font-black text-yellow-600 italic uppercase">"O pouco com Deus torna-se muito."</p>
             </div>
         </section>
-
     </main>
 
-    <!-- Navegação Flutuante -->
     <nav class="floating-nav">
-        <a href="#entrada" title="Entrada"><i class="fas fa-wallet"></i></a>
-        <a href="#obra" title="Obra"><i class="fas fa-city"></i></a>
-        <a href="#anuais" title="Anuais"><i class="fas fa-calendar"></i></a>
-        <a href="#cofrinho" title="Cofrinho"><i class="fas fa-piggy-bank"></i></a>
+        <a href="#entrada"><i class="fas fa-wallet"></i></a>
+        <a href="#evo"><i class="fas fa-chart-line"></i></a>
+        <a href="#anuais"><i class="fas fa-calendar"></i></a>
+        <a href="#cofrinho"><i class="fas fa-piggy-bank"></i></a>
     </nav>
 
     <script>
         const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-        
-        const frases = [
-            "Tudo no tempo de Deus! 🙏",
-            "Nosso sonho está ganhando forma! ❤️",
-            "Cada centavo é um passo para o lar! 🔑",
-            "Imagine a nossa decoração aqui... ✨",
-            "A mão do Senhor está neste lugar! 🙌",
-            "Falta pouco para as chaves! 🗝️",
-            "Nossa vitória está selada! 🏠❤️"
-        ];
 
         function renderAll() {
             const data = window.getAppData();
+            const cronograma = window.getCronograma();
+            const { showAllEvo, showAllEntrada } = window.getShowStates();
             if(!data) return;
 
-            let totalEntrada = data.config.saldoInicial || 0;
-            let totalObra = 0;
+            // Variáveis de Soma
+            let somaEntradaPaga = data.config.saldoInicial || 0;
+            let somaEvoPaga = 0;
+            let somaAnualPaga = 0;
             
-            // Entrada
+            // Cálculo da Média de Custo por 1% de Obra (Baseado nos 4 meses pagos)
+            const mesesPagos = cronograma.filter(c => c.pago);
+            const totalPagoEvoHistorico = mesesPagos.reduce((acc, curr) => acc + curr.valorPago, 0);
+            const totalPercMedidoHistorico = mesesPagos.reduce((acc, curr) => acc + curr.percMes, 0);
+            const custoPorUmPorcento = totalPagoEvoHistorico / totalPercMedidoHistorico;
+
+            // Render Entrada
             const tEntrada = document.getElementById('table-entrada');
             tEntrada.innerHTML = '';
-            (data.payments || []).forEach((p, i) => {
-                totalEntrada += (p.entrada_pago || 0);
-                const isPaid = p.entrada_pago >= p.entrada_previsto && p.entrada_previsto > 0;
+            document.getElementById('btn-show-entrada').textContent = showAllEntrada ? "Ver menos" : "Ver mais";
+
+            data.payments.forEach((p, i) => {
+                somaEntradaPaga += (p.entrada_pago || 0);
+                if (!showAllEntrada && i > 3) return;
                 tEntrada.innerHTML += `
-                    <tr class="group hover:bg-pink-50/30 transition-colors">
-                        <td class="p-4 text-left"><input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable text-left pl-3 border-transparent hover:border-pink-200"></td>
-                        <td class="p-4"><input type="number" value="${p.entrada_previsto}" onchange="window.updateField(${i}, 'entrada_previsto', this.value)" class="input-editable text-gray-400"></td>
-                        <td class="p-4 relative">
-                            <input type="number" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-600 font-black">
-                            ${isPaid ? '<i class="fas fa-check-circle check-glow absolute right-4 top-1/2 -translate-y-1/2 text-xs"></i>' : ''}
+                    <tr>
+                        <td class="p-4 text-left pl-8 font-extrabold text-[12px]">${p.month}</td>
+                        <td class="p-4"><input type="number" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-600"></td>
+                    </tr>
+                `;
+            });
+
+            // Render Evolução
+            const tEvo = document.getElementById('table-obra-list');
+            tEvo.innerHTML = '';
+            document.getElementById('btn-show-evo').textContent = showAllEvo ? "Ver menos" : "Ver mais";
+
+            cronograma.forEach((item, i) => {
+                // Se já pagou, usa o valor real. Se não, projeta baseado no custo médio por 1%
+                let valorEtapa = item.pago ? item.valorPago : (item.percMes * custoPorUmPorcento);
+                somaEvoPaga += valorEtapa;
+                
+                if (!showAllEvo && i > 3) return;
+
+                const situacao = item.pago ? 'Paga' : 'Prevista';
+                const badge = item.pago ? 'medido-badge' : 'previsto-badge';
+
+                tEvo.innerHTML += `
+                    <tr class="${item.pago ? 'bg-blue-50/50' : 'opacity-70'}">
+                        <td class="p-4 text-left pl-8">
+                            <p class="font-black text-[11px] text-gray-700">Etapa ${item.etapa}</p>
+                            <p class="text-[10px] text-gray-400 font-bold">${item.data}</p>
+                        </td>
+                        <td class="p-4 font-black text-blue-500 text-[11px]">${item.percMes.toFixed(2)}%</td>
+                        <td class="p-4 font-black text-gray-700 text-[12px]">${fmt(valorEtapa)}</td>
+                        <td class="p-4">
+                            <span class="${badge}">${situacao}</span>
                         </td>
                     </tr>
                 `;
             });
 
-            // Obra
-            const tObraList = document.getElementById('table-obra-list');
-            tObraList.innerHTML = '';
-            (data.payments || []).forEach((p, i) => {
-                totalObra += (p.evo_pago || 0);
-                const isPaid = p.evo_pago >= p.evo_previsto && p.evo_previsto > 0;
-                tObraList.innerHTML += `
-                    <tr class="group hover:bg-blue-50/30 transition-colors">
-                        <td class="p-4 text-left pl-8 font-extrabold text-[12px] text-gray-500">${p.month}</td>
-                        <td class="p-4"><input type="number" value="${p.evo_previsto}" onchange="window.updateField(${i}, 'evo_previsto', this.value)" class="input-editable text-gray-400"></td>
-                        <td class="p-4 relative">
-                            <input type="number" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-600 font-black">
-                            ${isPaid ? '<i class="fas fa-check-circle check-glow absolute right-4 top-1/2 -translate-y-1/2 text-xs"></i>' : ''}
-                        </td>
-                    </tr>
-                `;
-            });
-
-            // Anuais
+            // Render Anuais
             const aList = document.getElementById('anuais-list');
             aList.innerHTML = '';
-            (data.anuais || []).forEach((a, idx) => {
-                if(a.pago) totalEntrada += a.valor;
-                const div = document.createElement('div');
-                div.className = `p-4 rounded-[1.2rem] border-2 flex justify-between items-center cursor-pointer transition-all hover:shadow-md ${a.pago ? 'bg-green-50 border-green-200 shadow-inner' : 'bg-white border-gray-100'}`;
-                div.onclick = () => window.toggleAnual(idx);
-                div.innerHTML = `
-                    <div class="flex flex-col">
-                        <span class="text-[10px] font-black uppercase tracking-wider ${a.pago ? 'text-green-600' : 'text-gray-400'}">${a.label}</span>
-                        <span class="text-[14px] font-black ${a.pago ? 'text-green-700' : 'text-gray-700'}">${fmt(a.valor)}</span>
-                    </div>
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center ${a.pago ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-200'}">
-                        <i class="fas ${a.pago ? 'fa-check-circle' : 'fa-circle'}"></i>
+            data.anuais.forEach((a, idx) => {
+                if(a.pago) somaAnualPaga += a.valor;
+                aList.innerHTML += `
+                    <div onclick="window.toggleAnual(${idx})" class="p-4 rounded-2xl border-2 cursor-pointer transition-all ${a.pago ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-[9px] font-black uppercase text-gray-400">${a.label}</p>
+                                <p class="text-sm font-black">${fmt(a.valor)}</p>
+                            </div>
+                            <i class="fas ${a.pago ? 'fa-check-circle text-green-600' : 'fa-circle text-gray-100'}"></i>
+                        </div>
                     </div>
                 `;
-                aList.appendChild(div);
             });
 
-            // Cofrinho
-            const totalPoup = data.poupanca?.valorAtual || 0;
-            document.getElementById('input-cofrinho').value = totalPoup;
+            // Cálculos Finais de Contrato
+            const totalGeralPago = somaEntradaPaga + somaEvoPaga + somaAnualPaga;
+            const saldoDevedor = data.config.valorApartamento - totalGeralPago;
+            const percQuitado = (totalGeralPago / data.config.valorApartamento) * 100;
+            const restanteEntrada = data.config.totalEntrada - somaEntradaPaga;
 
-            // Update Dash
-            document.getElementById('dash-entrada').textContent = fmt(totalEntrada);
-            document.getElementById('dash-obra').textContent = fmt(totalObra);
-            document.getElementById('dash-poupanca').textContent = fmt(totalPoup);
-            document.getElementById('dash-finan').textContent = fmt(data.config.totalFinanciamento);
+            // Dashboards
+            document.getElementById('dash-total-pago').textContent = fmt(totalGeralPago);
+            document.getElementById('dash-evo-pago').textContent = fmt(somaEvoPaga);
+            document.getElementById('dash-poupanca').textContent = fmt(data.poupanca.valorAtual);
+            document.getElementById('dash-saldo-devedor').textContent = fmt(saldoDevedor);
+            document.getElementById('input-cofrinho').value = data.poupanca.valorAtual;
+
+            // Detalhes da Obra
+            const percObraReal = 9.19; // Última medição conhecida
+            document.getElementById('obra-perc').textContent = percObraReal.toFixed(2) + '%';
+            document.getElementById('obra-bar').style.width = percObraReal + '%';
+            document.getElementById('resumo-medicao').textContent = `Medido em Dez/25: ${percObraReal}%`;
             
-            // Gráfico Obra
-            const perc = data.config.statusObra || 0;
-            document.getElementById('obra-perc').textContent = perc.toFixed(1) + '%';
-            document.getElementById('obra-bar').style.width = perc + '%';
-            document.getElementById('range-obra').value = perc;
-            const fraseIndex = Math.floor((perc / 100) * (frases.length - 1));
-            document.getElementById('obra-frase').textContent = frases[fraseIndex] || frases[0];
+            document.getElementById('detalhe-valor-ap').textContent = fmt(data.config.valorApartamento);
+            document.getElementById('detalhe-valor-finan').textContent = fmt(data.config.totalFinanciamento);
+            document.getElementById('detalhe-valor-entrada').textContent = fmt(data.config.totalEntrada);
+            document.getElementById('detalhe-restante-entrada').textContent = fmt(restanteEntrada);
         }
     </script>
 </body>
