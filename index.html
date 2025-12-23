@@ -115,6 +115,23 @@
             window.saveDataCloud();
         };
 
+        window.addEntradaMonth = () => {
+            const lastMonth = window.currentData.payments[window.currentData.payments.length - 1];
+            let newLabel = "Próximo Mês";
+            if (lastMonth && lastMonth.month.includes('/')) {
+                const parts = lastMonth.month.split('/');
+                const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                let monthIdx = months.indexOf(parts[0]);
+                let year = parseInt(parts[1]);
+                monthIdx++;
+                if (monthIdx > 11) { monthIdx = 0; year++; }
+                newLabel = `${months[monthIdx]}/${year.toString().slice(-2)}`;
+            }
+            window.currentData.payments.push({ month: newLabel, entrada_previsto: 0, entrada_pago: 0 });
+            window.renderAll();
+            window.saveDataCloud();
+        };
+
         window.updateEvoValue = (i, val) => {
             if (!window.currentData.cronogramaEvo[i]) return;
             window.currentData.cronogramaEvo[i].valorPago = parseFloat(val) || 0;
@@ -289,8 +306,11 @@
 
         <!-- Plano de Entrada -->
         <section id="entrada" class="bg-white card-shadow overflow-hidden">
-            <div class="p-6 border-b border-gray-50">
+            <div class="p-6 border-b border-gray-50 flex justify-between items-center">
                 <h4 class="font-black text-gray-800 text-xs uppercase tracking-widest">Plano de Entrada</h4>
+                <button onclick="window.addEntradaMonth()" class="text-[9px] font-black uppercase text-pink-500 px-3 py-1 bg-pink-50 rounded-full hover:bg-pink-100 transition-colors">
+                    <i class="fas fa-plus mr-1"></i> Add Mês
+                </button>
             </div>
             <table class="w-full">
                 <tbody id="table-entrada" class="divide-y divide-gray-50"></tbody>
@@ -418,6 +438,7 @@
     </script>
 </body>
 </html>
+
 
 
 
