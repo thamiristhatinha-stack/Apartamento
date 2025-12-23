@@ -13,27 +13,15 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurações do Firebase obtidas do ambiente ou fallback
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "AIzaSyAeFtVA7Yg-DD8knaa9OxCPSoRnBKiUINk",
-                authDomain: "apartamento-d328e.firebaseapp.com",
-                projectId: "apartamento-d328e",
-                storageBucket: "apartamento-d328e.firebasestorage.app",
-                messagingSenderId: "206733797802",
-                appId: "1:206733797802:web:52fe508854e1c0d09d63d3"
-            };
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'apartamento-d328e';
-        
-        // CORREÇÃO DE CAMINHO (REGRA 1): Deve seguir /artifacts/{appId}/public/data/{collectionName}
-        // O document ID pode ser qualquer nome único.
-        const DOC_PATH = ['artifacts', currentAppId, 'public', 'data', 'finance_tracker', 'main_v1'];
+        const collectionName = 'finance_tracker';
+        const documentId = 'main_data';
 
         let currentData = null;
         let lastCelebratedPerc = 0;
@@ -62,15 +50,14 @@
 
         window.saveDataCloud = async function() {
             if (!auth.currentUser || !currentData) return;
-            const docRef = doc(db, ...DOC_PATH);
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, documentId);
             try {
                 await setDoc(docRef, currentData);
             } catch (e) { 
-                console.error("Erro ao salvar:", e); 
+                console.error("Erro ao guardar dados:", e); 
             }
         };
 
-        // Funções Globais para o UI
         window.updateConfig = (field, val) => {
             currentData.config[field] = (field === 'dataFinanciamento') ? val : (parseFloat(val) || 0);
             window.saveDataCloud();
@@ -78,7 +65,11 @@
         };
 
         window.updateField = (i, field, val) => {
-            currentData.payments[i][field] = (field === 'month') ? val : (parseFloat(val) || 0);
+            if (field === 'month') {
+                currentData.payments[i][field] = val;
+            } else {
+                currentData.payments[i][field] = parseFloat(val) || 0;
+            }
             window.saveDataCloud();
             renderAll();
         };
@@ -96,8 +87,6 @@
         };
 
         window.removeMonth = (i) => {
-            const modal = document.createElement('div');
-            // Simulação de confirmação sem alert()
             if(confirm('Deseja remover esta parcela?')) {
                 currentData.payments.splice(i, 1);
                 window.saveDataCloud();
@@ -146,41 +135,39 @@
         };
 
         async function initApp() {
-            // REGRA 3: Auth antes de Queries
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
-                } else { 
-                    await signInAnonymously(auth); 
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
                 }
-            } catch (err) { 
-                console.error("Auth falhou:", err);
+            } catch (authError) {
+                await signInAnonymously(auth).catch(e => console.error("Falha total auth:", e));
             }
 
-            onAuthStateChanged(auth, (user) => { 
+            onAuthStateChanged(auth, (user) => {
                 if (user) {
-                    setupRealtimeSync(); 
+                    setupRealtimeSync();
                 }
             });
         }
 
         function setupRealtimeSync() {
             if (!auth.currentUser) return;
-            const docRef = doc(db, ...DOC_PATH);
-            
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, documentId);
             if (unsubscribeSync) unsubscribeSync();
 
             unsubscribeSync = onSnapshot(docRef, (snapshot) => {
-                if (snapshot.exists()) { 
-                    currentData = snapshot.data(); 
-                } else { 
-                    currentData = defaultData; 
-                    window.saveDataCloud(); 
+                if (snapshot.exists()) {
+                    currentData = snapshot.data();
+                } else {
+                    currentData = defaultData;
+                    window.saveDataCloud();
                 }
                 renderAll();
             }, (error) => {
-                console.error("Erro Firestore (Permissões):", error);
-                document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-red-500 uppercase">Erro de Permissão: Contacte o Administrador</p>`;
+                console.error("Erro Crítico de Permissão:", error);
+                document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-red-500 uppercase">Acesso Negado: Contacte o suporte técnico.</p>`;
             });
         }
 
@@ -190,14 +177,13 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Nunito:wght@400;600;800&display=swap');
         body { font-family: 'Nunito', sans-serif; background-color: #fdf2f8; color: #4a5568; -webkit-tap-highlight-color: transparent; }
-        .bg-header { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); transition: all 1s ease; }
+        .bg-header { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); }
         .house-anim { animation: float 3s ease-in-out infinite; filter: drop-shadow(0 0 12px rgba(255,255,255,0.6)); }
         @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.05); } }
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(168, 85, 247, 0.15); border-radius: 2rem; }
-        .input-editable { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; width: 100%; text-align: center; font-size: 14px; }
-        .input-editable:focus { background: white; border-color: #ec4899; outline: none; }
+        .input-editable { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; width: 100%; text-align: center; font-size: 14px; transition: all 0.2s; }
+        .input-editable:focus { background: white; border-color: #ec4899; outline: none; box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.1); }
         .modal-bg { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); }
-        button:active { transform: scale(0.95); }
         input[type="range"]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; background: #a855f7; border-radius: 50%; cursor: pointer; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
     </style>
 </head>
@@ -228,7 +214,7 @@
             <h1 class="text-4xl font-black mb-1 tracking-tight">Nosso Apzinho 92</h1>
             <p class="text-white/90 font-bold italic mb-2">Thamirinha & Felipinho</p>
             <p class="text-[11px] max-w-xs mx-auto text-white/80 leading-relaxed mb-4 font-medium italic">
-                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará." — Salmos 37:5
+                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará."
             </p>
             <div class="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-[10px] font-black uppercase border border-white/30">
                 <i class="fas fa-hand-holding-heart text-pink-200"></i> Protegidos por Deus
@@ -241,9 +227,10 @@
 
     <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-20">
         <div id="moto-phrase" class="bg-white/80 backdrop-blur py-3 px-6 rounded-2xl shadow-xl mb-6 text-center border-l-4 border-purple-500 animate-pulse">
-            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">A conectar ao sistema...</p>
+            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">A sincronizar com o céu...</p>
         </div>
 
+        <!-- Dashboard Cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-white p-5 card-shadow border-b-4 border-pink-400">
                 <span class="text-[9px] font-black text-pink-400 uppercase">Entrada Paga</span>
@@ -265,46 +252,46 @@
             </div>
         </div>
 
-        <div id="config-panel" class="hidden bg-white rounded-[2.5rem] p-8 mb-8 card-shadow border border-purple-100 animate-in fade-in slide-in-from-top-4 duration-500">
-            <h3 class="font-black text-gray-800 mb-6 flex items-center gap-2"><i class="fas fa-edit text-purple-500"></i> Ajustar Valores</h3>
+        <!-- Painel de Configurações -->
+        <div id="config-panel" class="hidden bg-white rounded-[2.5rem] p-8 mb-8 card-shadow border border-purple-100">
+            <h3 class="font-black text-gray-800 mb-6 flex items-center gap-2"><i class="fas fa-edit text-purple-500"></i> Ajustes Gerais</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <label class="text-[10px] font-black uppercase text-gray-400">Total Financiamento</label>
-                    <input type="number" step="0.01" id="conf-finan" onchange="window.updateConfig('totalFinanciamento', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 focus:ring-2 focus:ring-purple-400 outline-none">
+                    <input type="number" step="0.01" id="conf-finan" onchange="window.updateConfig('totalFinanciamento', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 outline-none focus:ring-2 focus:ring-purple-400">
                 </div>
                 <div>
                     <label class="text-[10px] font-black uppercase text-gray-400">Meta Entrada</label>
-                    <input type="number" step="0.01" id="conf-entrada" onchange="window.updateConfig('totalEntrada', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 focus:ring-2 focus:ring-purple-400 outline-none">
+                    <input type="number" step="0.01" id="conf-entrada" onchange="window.updateConfig('totalEntrada', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 outline-none focus:ring-2 focus:ring-purple-400">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black uppercase text-gray-400">Data Chaves/Finan.</label>
-                    <input type="text" id="conf-data-finan" onchange="window.updateConfig('dataFinanciamento', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 focus:ring-2 focus:ring-purple-400 outline-none">
+                    <label class="text-[10px] font-black uppercase text-gray-400">Data Chaves</label>
+                    <input type="text" id="conf-data-finan" onchange="window.updateConfig('dataFinanciamento', this.value)" class="w-full bg-gray-50 p-4 rounded-2xl border mt-1 outline-none focus:ring-2 focus:ring-purple-400">
                 </div>
                 <div class="md:col-span-3">
-                    <label class="text-[10px] font-black uppercase text-gray-400 flex justify-between">Progresso Obra <span id="conf-obra-label" class="text-purple-600">0%</span></label>
-                    <input type="range" min="0" max="100" step="0.01" id="conf-obra-range" oninput="window.updateObraStatus(this.value)" class="w-full h-3 bg-purple-100 rounded-lg appearance-none mt-2">
+                    <label class="text-[10px] font-black uppercase text-gray-400 flex justify-between">Status Obra <span id="conf-obra-label">0%</span></label>
+                    <input type="range" min="0" max="100" step="0.01" id="conf-obra-range" oninput="window.updateObraStatus(this.value)" class="w-full mt-2">
                 </div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Coluna Principal: Fluxo Mensal -->
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-white">
                     <div class="p-6 bg-purple-50/50 flex justify-between items-center border-b">
-                        <h3 class="font-black text-gray-700 text-xs uppercase tracking-wider flex items-center gap-2">
-                            <i class="fas fa-calendar-alt text-purple-500"></i> Fluxo de Pagamento
-                        </h3>
+                        <h3 class="font-black text-gray-700 text-xs uppercase tracking-wider">Tabela de Pagamentos</h3>
                         <button onclick="addNewMonth()" class="bg-purple-600 text-white w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center hover:bg-purple-700 transition-all">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[550px]">
+                        <table class="w-full min-w-[600px]">
                             <thead class="bg-gray-50 text-[9px] font-black uppercase text-gray-400">
                                 <tr>
-                                    <th class="px-6 py-4 text-left">Mês / Referência</th>
-                                    <th class="px-2 py-4">Entrada (Pago)</th>
-                                    <th class="px-2 py-4">Obra (Pago)</th>
+                                    <th class="px-6 py-4 text-left">Mês / Descrição</th>
+                                    <th class="px-2 py-4 text-center">Entrada (R$)</th>
+                                    <th class="px-2 py-4 text-center">Obra (Evol.) (R$)</th>
                                     <th class="px-4 py-4 w-10"></th>
                                 </tr>
                             </thead>
@@ -313,6 +300,7 @@
                     </div>
                 </div>
 
+                <!-- Cofrinho -->
                 <div class="mt-8 bg-white rounded-[2.5rem] card-shadow p-8 border border-white">
                     <div class="flex justify-between items-center mb-6">
                         <h3 class="font-black text-xs text-gray-700 uppercase flex items-center gap-2">
@@ -324,21 +312,23 @@
                 </div>
             </div>
 
+            <!-- Coluna Lateral -->
             <div class="space-y-8">
-                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500 flex flex-col items-center">
-                    <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-6">Sonho em Construção</p>
-                    <div class="relative inline-flex items-center justify-center">
+                <!-- Progresso Obra -->
+                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500">
+                    <div class="relative inline-flex items-center justify-center mb-4">
                         <svg class="w-40 h-40 transform -rotate-90">
                             <circle class="text-gray-100" stroke-width="12" stroke="currentColor" fill="transparent" r="70" cx="80" cy="80"/>
                             <circle id="obra-circle" class="text-purple-600 transition-all duration-1000" stroke-width="12" stroke-dasharray="440" stroke-dashoffset="440" stroke-linecap="round" stroke="currentColor" fill="transparent" r="70" cx="80" cy="80"/>
                         </svg>
                         <span id="obra-perc-text" class="absolute text-4xl font-black text-purple-700">0%</span>
                     </div>
-                    <div class="mt-6 bg-purple-50 py-3 px-6 rounded-full text-[10px] font-black text-purple-600 uppercase">Cada tijolo é uma vitória</div>
+                    <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest">Status da Obra</p>
                 </div>
 
+                <!-- Anuais -->
                 <div class="bg-white rounded-[2.5rem] card-shadow p-8 border border-white">
-                    <h3 class="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">Parcelas Balão (Anuais)</h3>
+                    <h3 class="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">Parcelas Anuais (Balão)</h3>
                     <div id="anuais-list" class="space-y-4"></div>
                 </div>
             </div>
@@ -348,20 +338,11 @@
     <script>
         const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
         
-        const frasesObra = [
-            { min: 0, txt: "O alicerce da nossa história! 🧱" },
-            { min: 10, txt: "As paredes da nossa felicidade! ✨" },
-            { min: 25, txt: "Estrutura crescendo com amor! ❤️" },
-            { min: 50, txt: "Metade do caminho, dobro da fé! 🙏" },
-            { min: 75, txt: "Acabamentos do nosso jeitinho! 🏡" },
-            { min: 90, txt: "Quase lá, as chaves estão a chegar! 🔥" },
-            { min: 100, txt: "BEM-VINDOS AO NOSSO LAR! 🥂✨" }
-        ];
-
         function renderAll() {
             const data = window.getAppData();
             if(!data) return;
 
+            // Update Config Display
             document.getElementById('conf-obra-label').textContent = data.config.statusObra.toFixed(2) + '%';
             document.getElementById('conf-obra-range').value = data.config.statusObra;
             document.getElementById('conf-finan').value = data.config.totalFinanciamento;
@@ -370,11 +351,7 @@
             
             const perc = data.config.statusObra;
             document.getElementById('obra-perc-text').textContent = Math.floor(perc) + '%';
-            const offset = 440 - (440 * perc) / 100;
-            document.getElementById('obra-circle').style.strokeDashoffset = offset;
-
-            const frase = frasesObra.filter(f => perc >= f.min).pop();
-            document.getElementById('moto-phrase').innerHTML = `<p class="text-xs font-black text-purple-600 uppercase tracking-wide">${frase.txt}</p>`;
+            document.getElementById('obra-circle').style.strokeDashoffset = 440 - (440 * perc) / 100;
 
             const tbody = document.getElementById('main-table-body');
             tbody.innerHTML = '';
@@ -384,33 +361,51 @@
             data.payments.forEach((p, i) => {
                 totalEntradaPaga += (p.entrada_pago || 0);
                 totalObraPaga += (p.evo_pago || 0);
+                
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-gray-50/50 transition-colors";
                 tr.innerHTML = `
-                    <td class="px-6 py-5"><input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable font-bold text-gray-700 !text-left"></td>
-                    <td class="px-2 py-5 text-center">
-                        <div class="text-[9px] text-gray-400 font-bold mb-1">${fmt(p.entrada_previsto)}</div>
-                        <input type="number" step="0.01" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-600 font-black">
+                    <td class="px-6 py-5">
+                        <input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable font-bold text-gray-700 !text-left">
                     </td>
-                    <td class="px-2 py-5 text-center">
-                         <div class="text-[9px] text-gray-400 font-bold mb-1">${fmt(p.evo_previsto)}</div>
-                        <input type="number" step="0.01" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-600 font-black">
+                    <td class="px-2 py-5">
+                        <div class="flex flex-col gap-1 items-center">
+                            <div class="flex items-center gap-1">
+                                <span class="text-[8px] font-black text-gray-300 uppercase">Prev:</span>
+                                <input type="number" step="0.01" value="${p.entrada_previsto}" onchange="window.updateField(${i}, 'entrada_previsto', this.value)" class="w-16 text-[10px] bg-gray-50 border-none text-gray-400 font-bold text-center rounded">
+                            </div>
+                            <input type="number" step="0.01" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-600 font-black !text-base" placeholder="Pago">
+                        </div>
                     </td>
-                    <td class="px-4 py-5"><button onclick="window.removeMonth(${i})" class="text-gray-300 hover:text-red-500 transition-colors"><i class="fas fa-trash-alt"></i></button></td>
+                    <td class="px-2 py-5">
+                        <div class="flex flex-col gap-1 items-center">
+                            <div class="flex items-center gap-1">
+                                <span class="text-[8px] font-black text-gray-300 uppercase">Prev:</span>
+                                <input type="number" step="0.01" value="${p.evo_previsto}" onchange="window.updateField(${i}, 'evo_previsto', this.value)" class="w-16 text-[10px] bg-gray-50 border-none text-gray-400 font-bold text-center rounded">
+                            </div>
+                            <input type="number" step="0.01" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-600 font-black !text-base" placeholder="Pago">
+                        </div>
+                    </td>
+                    <td class="px-4 py-5">
+                        <button onclick="window.removeMonth(${i})" class="text-gray-200 hover:text-red-400 transition-colors">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
 
+            // Render Anuais
             const anuaisList = document.getElementById('anuais-list');
             anuaisList.innerHTML = '';
             data.anuais.forEach((a, idx) => {
                 if(a.pago) totalEntradaPaga += a.valor;
                 const div = document.createElement('div');
-                div.className = `p-5 rounded-[1.5rem] border-2 transition-all flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'}`;
+                div.className = `p-5 rounded-[1.5rem] border-2 transition-all flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`;
                 div.onclick = () => window.toggleAnual(idx);
                 div.innerHTML = `
-                    <div class="flex items-center gap-4">
-                        <i class="fas ${a.pago ? 'fa-check-circle text-green-500' : 'fa-circle text-gray-200'} text-xl"></i>
+                    <div class="flex items-center gap-3">
+                        <i class="fas ${a.pago ? 'fa-check-circle text-green-500' : 'fa-circle text-gray-200'}"></i>
                         <span class="text-[11px] font-black text-gray-700">${a.label}</span>
                     </div>
                     <span class="text-xs font-black ${a.pago ? 'text-green-600' : 'text-gray-400'}">${fmt(a.valor)}</span>
@@ -418,22 +413,22 @@
                 anuaisList.appendChild(div);
             });
 
+            // Render Poupanca
             const pList = document.getElementById('poupanca-list');
             pList.innerHTML = '';
             let totalPoup = 0;
-            const itens = data.poupanca?.itens || [];
-            itens.forEach((it, idx) => {
+            (data.poupanca?.itens || []).forEach((it, idx) => {
                 totalPoup += it.valor;
                 const div = document.createElement('div');
                 div.className = "bg-white border border-yellow-100 p-5 rounded-[1.5rem] flex justify-between items-center shadow-sm";
                 div.innerHTML = `
-                    <div class="flex flex-col"><span class="text-[11px] font-black text-gray-700 uppercase leading-none mb-1">${it.desc}</span><span class="text-[9px] text-gray-400 font-bold">${it.data}</span></div>
-                    <div class="flex items-center gap-4"><span class="text-sm font-black text-yellow-600">${fmt(it.valor)}</span>
-                    <button onclick="window.removePoupanca(${idx})" class="text-gray-200 hover:text-red-400"><i class="fas fa-times-circle"></i></button></div>
+                    <div class="flex flex-col"><span class="text-[10px] font-black text-gray-700 uppercase leading-tight">${it.desc}</span><span class="text-[8px] text-gray-400 font-bold">${it.data}</span></div>
+                    <div class="flex items-center gap-4"><span class="text-sm font-black text-yellow-600">${fmt(it.valor)}</span><button onclick="window.removePoupanca(${idx})" class="text-gray-300 hover:text-red-400"><i class="fas fa-times-circle"></i></button></div>
                 `;
                 pList.appendChild(div);
             });
 
+            // Dashboard Update
             document.getElementById('dash-entrada').textContent = fmt(totalEntradaPaga);
             document.getElementById('dash-falta-entrada').textContent = `FALTAM ${fmt(data.config.totalEntrada - totalEntradaPaga)}`;
             document.getElementById('dash-obra').textContent = fmt(totalObraPaga);
@@ -444,5 +439,6 @@
     </script>
 </body>
 </html>
+
 
 
