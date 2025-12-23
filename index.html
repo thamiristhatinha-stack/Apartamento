@@ -3,341 +3,313 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Apzinho 92 - Thamirinha & Felipinho</title>
+    <title>Apzinho 92 - Nosso Sonho</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAeFtVA7Yg-DD8knaa9OxCPSoRnBKiUINk",
-            authDomain: "apartamento-d328e.firebaseapp.com",
-            projectId: "apartamento-d328e",
-            storageBucket: "apartamento-d328e.firebasestorage.app",
-            messagingSenderId: "206733797802",
-            appId: "1:206733797802:web:52fe508854e1c0d09d63d3",
-            measurementId: "G-ER77Q970B7"
-        };
-
-        const appId = 'apartamento-d328e-prod';
-        const collectionName = 'finance_tracker';
-        const docId = 'finance-main';
+        const firebaseConfig = JSON.parse(__firebase_config || '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
         let currentData = null;
-        let lastCelebration = 0; 
+        const docId = 'apzinho-92-v5-purple-pink';
+        let lastCelebratedPerc = 0;
+
+        const defaultData = {
+            config: {
+                totalFinanciamento: 218149.62,
+                totalEntrada: 37733.85,
+                saldoInicial: 4999.90, 
+                statusObra: 7.43,
+                dataFinanciamento: 'Junho de 2027'
+            },
+            payments: [
+                { month: 'Parcela 1', entrada_previsto: 1078.11, entrada_pago: 1078.11, evo_previsto: 0, evo_pago: 0 }
+            ],
+            anuais: [
+                { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500.00, pago: false },
+                { id: 2, label: 'Anual 2 (Dez/26)', valor: 2500.00, pago: false },
+                { id: 3, label: 'Anual 3 (Dez/27)', valor: 2500.00, pago: false }
+            ],
+            poupanca: { itens: [], rendimentoTotal: 0 }
+        };
 
         window.getAppData = () => currentData;
 
         window.saveDataCloud = async function() {
             if (!auth.currentUser || !currentData) return;
-            updateStatus('Sincronizando...', 'text-yellow-200');
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
             try {
                 await setDoc(docRef, currentData);
-                updateStatus('Sincronizado', 'text-green-200');
-            } catch (e) {
-                console.error("Erro ao salvar:", e);
-                updateStatus('Erro ao salvar', 'text-red-300');
-            }
+            } catch (e) { console.error(e); }
         };
 
-        window.updateObraStatus = (val) => {
-            if(!currentData || !currentData.config) return; 
-            const num = parseFloat(val);
-            currentData.config.statusObra = num;
-            
-            if(num >= 50 && lastCelebration < 50) {
-                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#f472b6', '#60a5fa'] });
-                lastCelebration = 50;
-            } else if(num >= 100 && lastCelebration < 100) {
-                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
-                lastCelebration = 100;
-            }
-
+        window.updateConfig = (field, val) => {
+            currentData.config[field] = parseFloat(val) || val;
+            window.saveDataCloud();
             renderAll();
-            clearTimeout(window.saveTimeout);
-            window.saveTimeout = setTimeout(() => window.saveDataCloud(), 800);
         };
 
         window.updateField = (i, field, val) => {
-            if(!currentData) return;
             currentData.payments[i][field] = (field === 'month') ? val : (parseFloat(val) || 0);
             window.saveDataCloud();
             renderAll();
         };
 
         window.addNewMonth = () => {
-            if(!currentData) return;
-            currentData.payments.push({ month: 'Mês/Ano', entrada_pago: 0, evo_pago: 0 });
+            currentData.payments.push({ 
+                month: `Parcela ${currentData.payments.length + 1}`, 
+                entrada_previsto: 1078.11, 
+                entrada_pago: 0, 
+                evo_previsto: 0, 
+                evo_pago: 0 
+            });
             window.saveDataCloud();
             renderAll();
         };
 
-        window.deleteRow = function(i) {
-            if(!currentData) return;
-            if(confirm('Deseja excluir este registro?')) {
+        window.removeMonth = (i) => {
+            if(confirm('Remover esta parcela?')) {
                 currentData.payments.splice(i, 1);
                 window.saveDataCloud();
                 renderAll();
             }
         };
 
-        window.toggleAnual = (i) => {
-            if(!currentData) return;
-            currentData.anuais[i].pago = !currentData.anuais[i].pago;
+        window.updateObraStatus = (val) => {
+            const numericVal = parseFloat(val);
+            currentData.config.statusObra = numericVal;
+            if(numericVal >= lastCelebratedPerc + 5) {
+                confetti({ particleCount: 100, spread: 60, origin: { y: 0.7 }, colors: ['#a78bfa', '#f472b6'] });
+                lastCelebratedPerc = Math.floor(numericVal / 5) * 5;
+            }
             window.saveDataCloud();
             renderAll();
         };
 
-        window.toggleSettings = () => document.getElementById('settings-panel').classList.toggle('hidden');
+        // Funções do Cofrinho
         window.openPoupancaModal = () => document.getElementById('poupanca-modal').classList.remove('hidden');
         window.closePoupancaModal = () => document.getElementById('poupanca-modal').classList.add('hidden');
-
-        window.confirmAddPoupanca = () => {
-            if(!currentData) return;
+        window.addPoupancaItem = () => {
             const desc = document.getElementById('poup-desc').value;
             const valor = parseFloat(document.getElementById('poup-valor').value);
-            if (desc && !isNaN(valor)) {
-                if (!currentData.poupanca) currentData.poupanca = { itens: [], rendimentoTotal: 0 };
+            if(desc && valor) {
+                if(!currentData.poupanca) currentData.poupanca = { itens: [], rendimentoTotal: 0 };
                 currentData.poupanca.itens.push({ desc, valor, data: new Date().toLocaleDateString('pt-BR') });
+                document.getElementById('poup-desc').value = '';
+                document.getElementById('poup-valor').value = '';
                 window.saveDataCloud();
                 renderAll();
                 window.closePoupancaModal();
-                document.getElementById('poup-desc').value = ''; 
-                document.getElementById('poup-valor').value = '';
             }
         };
-
         window.removePoupanca = (i) => {
-            if(!currentData) return;
             currentData.poupanca.itens.splice(i, 1);
             window.saveDataCloud();
             renderAll();
         };
 
-        async function init() {
-            updateStatus('Conectando...', 'text-white/50');
+        async function initApp() {
             try {
-                await signInAnonymously(auth);
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
-                        onSnapshot(docRef, (snap) => {
-                            if (snap.exists()) {
-                                currentData = snap.data();
-                                renderAll();
-                                updateStatus('Conectado', 'text-green-200');
-                            } else {
-                                updateStatus('Criando banco...', 'text-blue-200');
-                                currentData = {
-                                    config: { totalFinanciamento: 218149.62, statusObra: 7.43 },
-                                    payments: [{ month: 'Jan/25', entrada_pago: 0, evo_pago: 0 }],
-                                    anuais: [
-                                        { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500, pago: false },
-                                        { id: 2, label: 'Anual 2 (Dez/26)', valor: 2500, pago: false },
-                                        { id: 3, label: 'Anual 3 (Dez/27)', valor: 2500, pago: false }
-                                    ],
-                                    poupanca: { itens: [], rendimentoTotal: 0 }
-                                };
-                                setDoc(docRef, currentData);
-                            }
-                        }, (err) => {
-                            console.error("Erro Snapshot:", err);
-                            updateStatus('Erro de Permissão', 'text-red-400');
-                        });
-                    }
-                });
-            } catch (e) {
-                console.error("Erro no Login:", e);
-                updateStatus('Erro de Acesso', 'text-red-500 bg-white px-2');
-            }
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else { await signInAnonymously(auth); }
+            } catch (err) { console.error(err); }
+            onAuthStateChanged(auth, (user) => { if (user) setupRealtimeSync(); });
         }
-        window.onload = init;
+
+        function setupRealtimeSync() {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finance_tracker', docId);
+            onSnapshot(docRef, (snapshot) => {
+                if (snapshot.exists()) { currentData = snapshot.data(); } 
+                else { currentData = defaultData; window.saveDataCloud(); }
+                renderAll();
+            });
+        }
+
+        initApp();
     </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
-        body { font-family: 'Nunito', sans-serif; background-color: #fff5f7; color: #4a5568; overflow-x: hidden; position: relative; }
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Nunito:wght@400;600;800&display=swap');
         
-        .bg-pattern {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 5;
-            opacity: 0.12;
-            pointer-events: none;
-            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ec4899' fill-opacity='0.6' fill-rule='evenodd'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
-        }
+        body { font-family: 'Nunito', sans-serif; background-color: #fdf2f8; color: #4a5568; }
+        
+        /* Cor Roxo com Rosa */
+        .bg-header { background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%); transition: all 1s ease; }
+        
+        .is-finished .bg-header { background: linear-gradient(135deg, #b8860b 0%, #ffd700 50%, #b8860b 100%); background-size: 200% 200%; animation: shine 3s linear infinite; }
+        @keyframes shine { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        
+        .house-anim { animation: float 3s ease-in-out infinite; filter: drop-shadow(0 0 12px rgba(255,255,255,0.6)); }
+        @keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.05); } }
 
-        .bg-couple { 
-            background: linear-gradient(135deg, #f472b6 0%, #a78bfa 50%, #60a5fa 100%); 
-            position: relative;
-        }
-
-        .card-shadow { box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.1); border-radius: 1.5rem; }
-        .input-editable { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 4px; width: 100%; text-align: right; font-size: 13px; }
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(168, 85, 247, 0.15); border-radius: 2rem; }
+        .input-editable { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; width: 100%; text-align: center; }
         .input-editable:focus { background: white; border-color: #ec4899; outline: none; }
-        .hidden { display: none; }
         
-        .cute-icon-wrapper {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 28px;
-            backdrop-filter: blur(5px);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-12px) rotate(3deg); }
-            100% { transform: translateY(0px) rotate(0deg); }
-        }
+        .tab-previsto { color: #94a3b8; font-size: 0.75rem; }
+        .tab-pago { color: #1e293b; font-weight: 800; font-size: 0.85rem; }
+        
+        .modal-bg { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); }
     </style>
 </head>
-<body class="min-h-screen pb-20">
-    <div class="bg-pattern"></div>
+<body class="min-h-screen pb-24">
 
-    <div id="poupanca-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-sm flex">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
-            <h3 class="text-xl font-black mb-4"><i class="fas fa-piggy-bank text-yellow-500 mr-2"></i>Novo Depósito</h3>
-            <input type="text" id="poup-desc" placeholder="O que vamos comprar? (Ex: Sofá)" class="w-full mb-3 p-3 bg-gray-50 rounded-xl border-none outline-none">
-            <input type="number" id="poup-valor" placeholder="Valor R$" class="w-full mb-4 p-3 bg-gray-50 rounded-xl border-none outline-none">
-            <div class="flex gap-2">
-                <button onclick="closePoupancaModal()" class="flex-1 py-3 font-bold text-gray-400 bg-gray-50 rounded-xl">Cancelar</button>
-                <button onclick="confirmAddPoupanca()" class="flex-1 py-3 font-black text-white bg-yellow-500 rounded-xl">Guardar</button>
+    <!-- Modal do Cofrinho -->
+    <div id="poupanca-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 modal-bg">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm p-8 shadow-2xl">
+            <h3 class="text-xl font-black text-gray-800 mb-6 flex items-center gap-3">
+                <i class="fas fa-piggy-bank text-pink-500"></i> Guardar no Cofrinho
+            </h3>
+            <div class="space-y-4">
+                <input type="text" id="poup-desc" placeholder="Para quê este dinheiro?" class="w-full bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400">
+                <input type="number" id="poup-valor" placeholder="Valor (R$)" class="w-full bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-pink-400">
+            </div>
+            <div class="flex gap-3 mt-8">
+                <button onclick="closePoupancaModal()" class="flex-1 py-4 font-bold text-gray-400">Cancelar</button>
+                <button onclick="addPoupancaItem()" class="flex-1 py-4 font-black text-white bg-pink-500 rounded-2xl shadow-lg active:scale-95 transition-all">Guardar</button>
             </div>
         </div>
     </div>
 
-    <header class="bg-couple text-white pb-20 pt-12 px-4 shadow-2xl rounded-b-[4rem] relative text-center">
-        <div class="max-w-5xl mx-auto relative z-10">
-            
-            <!-- Ícone Principal Animado -->
-            <div class="cute-icon-wrapper">
-                <svg viewBox="0 0 100 100" class="w-14 h-14">
-                    <!-- Base da Casinha -->
-                    <path d="M20,50 L20,85 C20,87.7 22.3,90 25,90 L75,90 C77.7,90 80,87.7 80,85 L80,50" fill="white" />
-                    <!-- Telhado -->
-                    <path d="M10,55 L50,15 L90,55" stroke="white" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-                    <!-- Janela Coração -->
-                    <path d="M50,72 C50,72 45,68 45,64 C45,61 47,59 50,59 C53,59 55,61 55,64 C55,68 50,72 50,72" fill="#f472b6" />
-                    <!-- Estrelas/Brilhos -->
-                    <circle cx="85" cy="20" r="3" fill="white">
-                        <animate attributeName="opacity" values="0;1;0" dur="2s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx="15" cy="35" r="2" fill="white">
-                        <animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite" />
-                    </circle>
-                </svg>
+    <header id="main-header" class="bg-header text-white pb-24 pt-10 px-6 rounded-b-[3.5rem] relative text-center shadow-2xl">
+        <div class="max-w-5xl mx-auto">
+            <div class="inline-block mb-3 house-anim">
+                <i class="fas fa-house-chimney-window text-6xl"></i>
             </div>
-
-            <h1 class="text-5xl font-black mb-2 drop-shadow-lg tracking-tight">Apzinho 92</h1>
-            <p class="text-white font-black tracking-[0.2em] uppercase text-xs opacity-90">Thamirinha & Felipinho • 2025</p>
             
-            <div id="sync-status" class="block mx-auto max-w-fit items-center gap-2 bg-black/20 px-4 py-1.5 rounded-full text-[9px] font-black mt-10 border border-white/20 uppercase tracking-widest">CONECTANDO...</div>
+            <h1 class="text-4xl font-black mb-1 tracking-tight">Nosso Apzinho 92</h1>
+            <p class="text-white/90 font-bold italic mb-2">Thamirinha & Felipinho</p>
+            
+            <p class="text-[11px] max-w-xs mx-auto text-white/80 leading-relaxed mb-4 font-medium italic">
+                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará." — Salmos 37:5
+            </p>
+
+            <div class="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-[10px] font-black uppercase border border-white/30">
+                <i class="fas fa-hand-holding-heart text-pink-200"></i> Protegidos por Deus
+            </div>
         </div>
-        <button onclick="toggleSettings()" class="absolute top-6 right-6 text-white/70 bg-white/10 p-2.5 rounded-xl active:scale-90 z-20"><i class="fas fa-sliders-h"></i></button>
+        
+        <button onclick="document.getElementById('config-panel').classList.toggle('hidden')" class="absolute top-6 right-6 bg-white/10 p-3 rounded-2xl hover:bg-white/20 transition-all">
+            <i class="fas fa-sliders-h"></i>
+        </button>
     </header>
 
-    <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-30">
-        <!-- Dashboard -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-center">
-            <div class="bg-white p-5 card-shadow border border-pink-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-pink-100 rounded-2xl flex items-center justify-center text-pink-500 mb-3 shadow-inner">
-                    <i class="fas fa-hand-holding-usd text-sm"></i>
-                </div>
-                <p class="text-[10px] font-black text-pink-400 uppercase tracking-tighter">Entrada</p>
-                <h2 class="text-xl font-black" id="dash-entrada">R$ 0,00</h2>
+    <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-20">
+        
+        <!-- Frase de Status Dinâmica -->
+        <div id="moto-phrase" class="bg-white/80 backdrop-blur py-3 px-6 rounded-2xl shadow-xl mb-6 text-center border-l-4 border-purple-500 animate-pulse">
+            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">Calculando progresso...</p>
+        </div>
+
+        <!-- Dashboard Superior -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-pink-400">
+                <span class="text-[9px] font-black text-pink-400 uppercase mb-1">Entrada Paga</span>
+                <h2 class="text-lg font-black text-gray-800" id="dash-entrada">R$ 0,00</h2>
+                <span class="text-[8px] font-bold text-gray-400" id="dash-falta-entrada"></span>
             </div>
-            <div class="bg-white p-5 card-shadow border border-blue-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-500 mb-3 shadow-inner">
-                    <i class="fas fa-building text-sm"></i>
-                </div>
-                <p class="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Obra</p>
-                <h2 class="text-xl font-black" id="dash-obra">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-blue-400">
+                <span class="text-[9px] font-black text-blue-400 uppercase mb-1">Obra Paga</span>
+                <h2 class="text-lg font-black text-gray-800" id="dash-obra">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-5 card-shadow border border-yellow-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-yellow-100 rounded-2xl flex items-center justify-center text-yellow-600 mb-3 shadow-inner">
-                    <i class="fas fa-piggy-bank text-sm"></i>
-                </div>
-                <p class="text-[10px] font-black text-yellow-600 uppercase tracking-tighter">Cofrinho</p>
-                <h2 class="text-xl font-black" id="dash-poupanca">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-yellow-400">
+                <span class="text-[9px] font-black text-yellow-600 uppercase mb-1">No Cofrinho</span>
+                <h2 class="text-lg font-black text-gray-800" id="dash-poupanca">R$ 0,00</h2>
             </div>
-            <div class="bg-white p-5 card-shadow border border-purple-50 flex flex-col items-center">
-                <div class="w-10 h-10 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-500 mb-3 shadow-inner">
-                    <i class="fas fa-heart text-sm"></i>
-                </div>
-                <p class="text-[10px] font-black text-purple-400 uppercase tracking-tighter">Total</p>
-                <h2 class="text-xl font-black font-extrabold" id="dash-total">R$ 0,00</h2>
+            <div class="bg-white p-5 card-shadow flex flex-col items-center border-b-4 border-purple-400">
+                <span class="text-[9px] font-black text-purple-500 uppercase mb-1">Financiamento</span>
+                <h2 class="text-lg font-black text-gray-800" id="dash-finan">R$ 0,00</h2>
+                <span class="text-[8px] font-black text-purple-300" id="finan-date">Início: Jun/2027</span>
             </div>
         </div>
 
-        <!-- Painel de Definições -->
-        <div id="settings-panel" class="hidden bg-white rounded-3xl p-6 mb-6 card-shadow border border-pink-100">
-            <h3 class="text-xs font-black text-gray-400 uppercase mb-4">Progresso da Obra</h3>
-            <input type="range" id="setting-obra-range" min="0" max="100" step="0.01" class="w-full h-2 bg-pink-100 rounded-lg appearance-none cursor-pointer accent-pink-500" oninput="updateObraStatus(this.value)">
+        <!-- Painel de Configurações -->
+        <div id="config-panel" class="hidden bg-white rounded-[2.5rem] p-8 mb-8 card-shadow border border-purple-100">
+            <h3 class="font-black text-gray-800 mb-6 flex items-center gap-2"><i class="fas fa-edit text-purple-500"></i> Ajustar Valores</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="text-[10px] font-black uppercase text-gray-400">Total Financiamento</label>
+                    <input type="number" step="0.01" id="conf-finan" onchange="window.updateConfig('totalFinanciamento', this.value)" class="w-full bg-gray-50 p-3 rounded-xl border mt-1">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black uppercase text-gray-400">Meta Entrada</label>
+                    <input type="number" step="0.01" id="conf-entrada" onchange="window.updateConfig('totalEntrada', this.value)" class="w-full bg-gray-50 p-3 rounded-xl border mt-1">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black uppercase text-gray-400">Ato Inicial</label>
+                    <input type="number" step="0.01" id="conf-ato" onchange="window.updateConfig('saldoInicial', this.value)" class="w-full bg-gray-50 p-3 rounded-xl border mt-1">
+                </div>
+                <div class="md:col-span-3">
+                    <label class="text-[10px] font-black uppercase text-gray-400">Progresso Obra: <span id="conf-obra-label">0%</span></label>
+                    <input type="range" min="0" max="100" step="0.01" id="conf-obra-range" oninput="window.updateObraStatus(this.value)" class="w-full h-2 bg-purple-100 rounded-lg appearance-none accent-purple-600 mt-2">
+                </div>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Coluna Esquerda: Mensal e Cofrinho -->
-            <div class="lg:col-span-2 space-y-6">
-                <div class="bg-white rounded-[2rem] card-shadow border border-gray-100 overflow-hidden">
-                    <div class="p-6 border-b flex justify-between items-center">
-                        <h3 class="font-black text-gray-700 text-base"><i class="far fa-calendar-alt mr-2 text-pink-500"></i>Controle Mensal</h3>
-                        <button onclick="addNewMonth()" class="bg-pink-500 text-white w-10 h-10 rounded-2xl shadow-lg active:scale-90 flex items-center justify-center transition-transform">
-                            <i class="fas fa-plus"></i>
-                        </button>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Pagamentos -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+                    <div class="p-6 bg-purple-50/50 flex justify-between items-center">
+                        <h3 class="font-black text-gray-700 text-sm uppercase tracking-wider flex items-center gap-2"><i class="fas fa-money-bill-transfer text-purple-500"></i> Mensalidades</h3>
+                        <button onclick="addNewMonth()" class="bg-purple-600 text-white w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center hover:scale-110 active:scale-90 transition-all"><i class="fas fa-plus"></i></button>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="bg-gray-50 text-[10px] text-gray-400 font-black uppercase">
-                                <tr class="text-left">
-                                    <th class="px-6 py-4">Mês/Ano</th>
-                                    <th class="px-6 py-4 text-right">Entrada</th>
-                                    <th class="px-6 py-4 text-right">Evolução</th>
-                                    <th class="px-6 py-4 text-center">Ações</th>
+                        <table class="w-full">
+                            <thead class="bg-gray-50 text-[8px] font-black uppercase text-gray-400 text-center">
+                                <tr>
+                                    <th class="px-4 py-4 text-left">Referência</th>
+                                    <th class="px-2 py-4">Entrada (Prev)</th>
+                                    <th class="px-2 py-4">Entrada (Pago)</th>
+                                    <th class="px-2 py-4">Obra (Prev)</th>
+                                    <th class="px-2 py-4">Obra (Pago)</th>
+                                    <th class="px-2 py-4 w-10"></th>
                                 </tr>
                             </thead>
-                            <tbody id="table-body" class="divide-y divide-gray-50"></tbody>
+                            <tbody id="main-table-body" class="divide-y divide-gray-50"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-[2rem] card-shadow border border-yellow-100 overflow-hidden">
-                    <div class="p-6 border-b flex justify-between items-center bg-yellow-50/20">
-                        <h3 class="font-black text-yellow-700 text-base"><i class="fas fa-couch mr-2 text-yellow-500"></i>Cofrinho Mudança</h3>
-                        <button onclick="openPoupancaModal()" class="bg-yellow-500 text-white px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase shadow-md active:scale-95">Adicionar</button>
+                <!-- Lista do Cofrinho (Abaixo da tabela) -->
+                <div class="mt-8 bg-white rounded-[2.5rem] card-shadow p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-black text-sm text-gray-700 uppercase flex items-center gap-2"><i class="fas fa-piggy-bank text-yellow-500"></i> Nosso Cofrinho Extra</h3>
+                        <button onclick="openPoupancaModal()" class="text-xs font-black text-pink-500 bg-pink-50 px-4 py-2 rounded-full border border-pink-100">Guardar Mais</button>
                     </div>
-                    <div id="poupanca-list" class="p-6 space-y-3"></div>
+                    <div id="poupanca-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
                 </div>
             </div>
 
-            <!-- Coluna Direita: Status Obra e Anuais -->
-            <div class="space-y-6">
-                <div id="obra-card" class="bg-white rounded-[2rem] card-shadow p-8 border border-blue-50 flex flex-col items-center">
-                    <p class="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-2">Status da Obra</p>
-                    <span id="display-obra-perc" class="text-4xl font-black text-blue-600 mb-4 tracking-tighter">0%</span>
-                    <div class="w-full bg-blue-50 h-4 rounded-full overflow-hidden mb-6 p-1">
-                        <div id="progress-bar-obra" class="bg-blue-500 h-full rounded-full transition-all duration-1000"></div>
+            <!-- Lateral -->
+            <div class="space-y-8">
+                <!-- Gráfico Obra -->
+                <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500" id="obra-card">
+                    <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest mb-4">Evolução do Apê</p>
+                    <div class="relative inline-flex items-center justify-center mb-6">
+                        <svg class="w-36 h-36">
+                            <circle class="text-gray-100" stroke-width="10" stroke="currentColor" fill="transparent" r="64" cx="72" cy="72"/>
+                            <circle id="obra-circle" class="text-purple-600 transition-all duration-1000" stroke-width="10" stroke-dasharray="402" stroke-dashoffset="402" stroke-linecap="round" stroke="currentColor" fill="transparent" r="64" cx="72" cy="72"/>
+                        </svg>
+                        <span id="obra-perc-text" class="absolute text-3xl font-black text-purple-700">0%</span>
                     </div>
-                    <p id="obra-message" class="text-[11px] text-center font-bold text-gray-500 leading-relaxed"></p>
+                    <div class="bg-purple-50 py-2 px-4 rounded-full text-[10px] font-black text-purple-600 uppercase">Ficando lindo!</div>
                 </div>
 
-                <div class="bg-white rounded-[2rem] card-shadow p-6 border border-purple-100">
-                    <h3 class="font-black text-gray-700 text-[11px] uppercase tracking-widest mb-5"><i class="fas fa-gift mr-2 text-purple-500"></i>Parcelas Anuais</h3>
+                <!-- Anuais/Balões -->
+                <div class="bg-white rounded-[2.5rem] card-shadow p-6">
+                    <h3 class="font-black text-[10px] uppercase text-gray-400 mb-4 tracking-widest">Parcelas Balão (Anuais)</h3>
                     <div id="anuais-list" class="space-y-3"></div>
                 </div>
             </div>
@@ -345,66 +317,105 @@
     </main>
 
     <script>
-        function updateStatus(text, color) {
-            const el = document.getElementById('sync-status');
-            if(el) { el.innerHTML = text; el.className = `block mx-auto max-w-fit items-center gap-2 bg-black/20 px-4 py-1.5 rounded-full text-[9px] font-black mt-10 border border-white/20 uppercase tracking-widest ${color}`; }
-        }
-
         const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+
+        const frasesObra = [
+            { min: 0, txt: "Fundação concluída! 🧱" },
+            { min: 10, txt: "Erguendo as paredes! ✨" },
+            { min: 25, txt: "Estrutura avançando! ❤️" },
+            { min: 50, txt: "Metade do sonho pronto! 🙏" },
+            { min: 75, txt: "Fase de acabamento! 🏡" },
+            { min: 90, txt: "Quase entregando as chaves! 🔥" },
+            { min: 100, txt: "NOSSO APÊ ESTÁ PRONTO! 🥂✨" }
+        ];
 
         function renderAll() {
             const data = window.getAppData();
             if(!data) return;
 
-            const perc = data.config?.statusObra || 0;
-            const obraMsg = document.getElementById('obra-message');
-            document.getElementById('display-obra-perc').textContent = perc.toFixed(2) + '%';
-            document.getElementById('progress-bar-obra').style.width = perc + '%';
-            document.getElementById('setting-obra-range').value = perc;
+            const isFinished = data.config.statusObra >= 100;
+            document.body.classList.toggle('is-finished', isFinished);
+            
+            // Configurar campos do painel
+            document.getElementById('conf-finan').value = data.config.totalFinanciamento;
+            document.getElementById('conf-entrada').value = data.config.totalEntrada;
+            document.getElementById('conf-ato').value = data.config.saldoInicial;
+            document.getElementById('conf-obra-range').value = data.config.statusObra;
+            document.getElementById('conf-obra-label').textContent = data.config.statusObra.toFixed(2) + '%';
+            
+            // Status Gráfico
+            const perc = data.config.statusObra;
+            document.getElementById('obra-perc-text').textContent = perc.toFixed(1) + '%';
+            const offset = 402 - (402 * perc) / 100;
+            document.getElementById('obra-circle').style.strokeDashoffset = offset;
 
-            obraMsg.textContent = perc < 50 ? "Construindo nosso sonho tijolo por tijolo! 🏗️" : "Falta pouco, amor! O nosso ninho está quase pronto. 🏠✨";
+            // Frase de Status
+            const frase = frasesObra.filter(f => perc >= f.min).pop();
+            document.getElementById('moto-phrase').innerHTML = `<p class="text-sm font-black text-purple-600 uppercase">${frase.txt}</p>`;
 
-            let totalEntrada = 0; let totalObra = 0;
-            const tbody = document.getElementById('table-body');
+            // Tabela de Pagamentos
+            const tbody = document.getElementById('main-table-body');
             tbody.innerHTML = '';
-            (data.payments || []).forEach((p, i) => {
-                totalEntrada += (p.entrada_pago || 0); totalObra += (p.evo_pago || 0);
-                tbody.innerHTML += `
-                    <tr>
-                        <td class="px-6 py-4"><input type="text" value="${p.month}" onchange="updateField(${i}, 'month', this.value)" class="input-editable text-left font-bold text-gray-600"></td>
-                        <td class="px-6 py-4"><input type="number" step="0.01" value="${p.entrada_pago}" onchange="updateField(${i}, 'entrada_pago', this.value)" class="input-editable text-pink-500 font-extrabold"></td>
-                        <td class="px-6 py-4"><input type="number" step="0.01" value="${p.evo_pago}" onchange="updateField(${i}, 'evo_pago', this.value)" class="input-editable text-blue-500 font-extrabold"></td>
-                        <td class="px-6 py-4 text-center"><button onclick="deleteRow(${i})" class="text-red-200 hover:text-red-500 transition-colors"><i class="fas fa-trash-alt"></i></button></td>
-                    </tr>`;
+            let totalEntradaPaga = data.config.saldoInicial || 0;
+            let totalObraPaga = 0;
+
+            data.payments.forEach((p, i) => {
+                totalEntradaPaga += (p.entrada_pago || 0);
+                totalObraPaga += (p.evo_pago || 0);
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50/50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-4 py-4"><input type="text" value="${p.month}" onchange="window.updateField(${i}, 'month', this.value)" class="input-editable font-bold text-gray-700 text-left"></td>
+                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.entrada_previsto}" onchange="window.updateField(${i}, 'entrada_previsto', this.value)" class="input-editable tab-previsto"></td>
+                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.entrada_pago}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable tab-pago text-pink-600"></td>
+                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.evo_previsto}" onchange="window.updateField(${i}, 'evo_previsto', this.value)" class="input-editable tab-previsto"></td>
+                    <td class="px-2 py-4"><input type="number" step="0.01" value="${p.evo_pago}" onchange="window.updateField(${i}, 'evo_pago', this.value)" class="input-editable tab-pago text-blue-600"></td>
+                    <td class="px-2 py-4"><button onclick="window.removeMonth(${i})" class="text-gray-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button></td>
+                `;
+                tbody.appendChild(tr);
             });
 
-            const anuaisDiv = document.getElementById('anuais-list');
-            anuaisDiv.innerHTML = '';
-            (data.anuais || []).forEach((a, idx) => {
-                if(a.pago) totalEntrada += a.valor;
-                anuaisDiv.innerHTML += `
-                    <div onclick="toggleAnual(${idx})" class="p-4 rounded-2xl border flex justify-between items-center cursor-pointer transition-all ${a.pago ? 'bg-green-50 border-green-200 text-green-700 shadow-inner' : 'bg-gray-50 border-gray-100 text-gray-400'}">
-                        <span class="text-[11px] font-bold">${a.label}</span>
-                        <span class="text-[11px] font-black">${fmt(a.valor)}</span>
-                    </div>`;
+            // Anuais
+            const anuaisList = document.getElementById('anuais-list');
+            anuaisList.innerHTML = '';
+            data.anuais.forEach((a, idx) => {
+                if(a.pago) totalEntradaPaga += a.valor;
+                const div = document.createElement('div');
+                div.className = `p-4 rounded-2xl border flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200 shadow-inner' : 'bg-gray-50 border-gray-100'}`;
+                div.onclick = () => { data.anuais[idx].pago = !a.pago; window.saveDataCloud(); renderAll(); };
+                div.innerHTML = `
+                    <div class="flex items-center gap-3"><i class="fas ${a.pago ? 'fa-check-circle text-green-500' : 'fa-circle text-gray-200'}"></i>
+                    <span class="text-[10px] font-black text-gray-700">${a.label}</span></div>
+                    <span class="text-xs font-black ${a.pago ? 'text-green-600' : 'text-gray-400'}">${fmt(a.valor)}</span>
+                `;
+                anuaisList.appendChild(div);
             });
 
-            const poupList = document.getElementById('poupanca-list');
-            poupList.innerHTML = '';
-            let totalPoup = data.poupanca?.rendimentoTotal || 0;
-            (data.poupanca?.itens || []).forEach((po, i) => {
-                totalPoup += po.valor;
-                poupList.innerHTML += `
-                    <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-yellow-100 shadow-sm">
-                        <div class="flex flex-col"><span class="text-xs font-black text-gray-700">${po.desc}</span><span class="text-[9px] font-bold text-gray-400 uppercase">${po.data}</span></div>
-                        <div class="flex items-center gap-4"><span class="text-sm font-black text-yellow-600">${fmt(po.valor)}</span><button onclick="removePoupanca(${i})" class="text-red-200 hover:text-red-500"><i class="fas fa-times-circle"></i></button></div>
-                    </div>`;
+            // Cofrinho
+            const pList = document.getElementById('poupanca-list');
+            pList.innerHTML = '';
+            let totalPoup = 0;
+            const itens = data.poupanca?.itens || [];
+            itens.forEach((it, idx) => {
+                totalPoup += it.valor;
+                const div = document.createElement('div');
+                div.className = "bg-white border border-yellow-100 p-4 rounded-2xl flex justify-between items-center shadow-sm";
+                div.innerHTML = `
+                    <div class="flex flex-col"><span class="text-[10px] font-black text-gray-700 uppercase">${it.desc}</span><span class="text-[8px] text-gray-400">${it.data}</span></div>
+                    <div class="flex items-center gap-3"><span class="text-xs font-black text-yellow-600">${fmt(it.valor)}</span>
+                    <button onclick="window.removePoupanca(${idx})" class="text-gray-200 hover:text-red-400"><i class="fas fa-times-circle"></i></button></div>
+                `;
+                pList.appendChild(div);
             });
 
-            document.getElementById('dash-entrada').textContent = fmt(totalEntrada);
-            document.getElementById('dash-obra').textContent = fmt(totalObra);
+            // Dashboards
+            document.getElementById('dash-entrada').textContent = fmt(totalEntradaPaga);
+            document.getElementById('dash-falta-entrada').textContent = `Faltam ${fmt(data.config.totalEntrada - totalEntradaPaga)}`;
+            document.getElementById('dash-obra').textContent = fmt(totalObraPaga);
             document.getElementById('dash-poupanca').textContent = fmt(totalPoup);
-            document.getElementById('dash-total').textContent = fmt(totalEntrada + totalObra + totalPoup);
+            document.getElementById('dash-finan').textContent = fmt(data.config.totalFinanciamento);
+            document.getElementById('finan-date').textContent = `Início: ${data.config.dataFinanciamento}`;
         }
     </script>
 </body>
