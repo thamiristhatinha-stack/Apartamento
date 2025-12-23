@@ -13,19 +13,13 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // Configuração segura
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
+        let app, auth, db;
         const collectionName = 'finance_tracker';
         const documentId = 'main_data';
-
-        let currentData = null;
-        let lastCelebratedPerc = 0;
-        let unsubscribeSync = null;
 
         const defaultData = {
             config: {
@@ -46,10 +40,15 @@
             poupanca: { itens: [], rendimentoTotal: 0 }
         };
 
+        // Começamos com os dados padrão para não ficar "preso" no loading
+        let currentData = defaultData;
+        let lastCelebratedPerc = 0;
+        let unsubscribeSync = null;
+
         window.getAppData = () => currentData;
 
         window.saveDataCloud = async function() {
-            if (!auth.currentUser || !currentData) return;
+            if (!auth || !auth.currentUser) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, documentId);
             try {
                 await setDoc(docRef, currentData);
@@ -135,39 +134,47 @@
         };
 
         async function initApp() {
+            // Renderiza logo os dados padrão
+            renderAll();
+
+            if (!firebaseConfig) {
+                document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-amber-500 uppercase">Modo Offline (Configuração não detetada)</p>`;
+                return;
+            }
+
             try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (authError) {
-                await signInAnonymously(auth).catch(e => console.error("Falha total auth:", e));
-            }
 
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    setupRealtimeSync();
-                }
-            });
+                onAuthStateChanged(auth, (user) => {
+                    if (user) setupRealtimeSync();
+                });
+            } catch (err) {
+                console.error("Erro na inicialização:", err);
+            }
         }
 
         function setupRealtimeSync() {
-            if (!auth.currentUser) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, documentId);
-            if (unsubscribeSync) unsubscribeSync();
-
+            
             unsubscribeSync = onSnapshot(docRef, (snapshot) => {
                 if (snapshot.exists()) {
                     currentData = snapshot.data();
+                    document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-green-500 uppercase">Ligado à Nuvem <i class="fas fa-cloud"></i></p>`;
                 } else {
-                    currentData = defaultData;
                     window.saveDataCloud();
                 }
                 renderAll();
             }, (error) => {
-                console.error("Erro Crítico de Permissão:", error);
-                document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-red-500 uppercase">Acesso Negado: Contacte o suporte técnico.</p>`;
+                console.error("Erro Firestore:", error);
+                document.getElementById('moto-phrase').innerHTML = `<p class="text-[10px] font-black text-red-500 uppercase">Erro de Sincronização: ${error.code}</p>`;
             });
         }
 
@@ -214,7 +221,8 @@
             <h1 class="text-4xl font-black mb-1 tracking-tight">Nosso Apzinho 92</h1>
             <p class="text-white/90 font-bold italic mb-2">Thamirinha & Felipinho</p>
             <p class="text-[11px] max-w-xs mx-auto text-white/80 leading-relaxed mb-4 font-medium italic">
-                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará."
+                "Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará." <br>
+                <span class="font-black text-white/100 block mt-1">(Salmos 37:5)</span>
             </p>
             <div class="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-[10px] font-black uppercase border border-white/30">
                 <i class="fas fa-hand-holding-heart text-pink-200"></i> Protegidos por Deus
@@ -226,8 +234,8 @@
     </header>
 
     <main class="max-w-5xl mx-auto px-4 -mt-10 relative z-20">
-        <div id="moto-phrase" class="bg-white/80 backdrop-blur py-3 px-6 rounded-2xl shadow-xl mb-6 text-center border-l-4 border-purple-500 animate-pulse">
-            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">A sincronizar com o céu...</p>
+        <div id="moto-phrase" class="bg-white/80 backdrop-blur py-3 px-6 rounded-2xl shadow-xl mb-6 text-center border-l-4 border-purple-500">
+            <p class="text-sm font-black text-purple-600 uppercase tracking-wide">A carregar o nosso futuro...</p>
         </div>
 
         <!-- Dashboard Cards -->
@@ -276,7 +284,6 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Coluna Principal: Fluxo Mensal -->
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-white">
                     <div class="p-6 bg-purple-50/50 flex justify-between items-center border-b">
@@ -300,7 +307,6 @@
                     </div>
                 </div>
 
-                <!-- Cofrinho -->
                 <div class="mt-8 bg-white rounded-[2.5rem] card-shadow p-8 border border-white">
                     <div class="flex justify-between items-center mb-6">
                         <h3 class="font-black text-xs text-gray-700 uppercase flex items-center gap-2">
@@ -312,9 +318,7 @@
                 </div>
             </div>
 
-            <!-- Coluna Lateral -->
             <div class="space-y-8">
-                <!-- Progresso Obra -->
                 <div class="bg-white rounded-[2.5rem] card-shadow p-8 text-center border-b-8 border-purple-500">
                     <div class="relative inline-flex items-center justify-center mb-4">
                         <svg class="w-40 h-40 transform -rotate-90">
@@ -326,7 +330,6 @@
                     <p class="text-[10px] font-black uppercase text-purple-400 tracking-widest">Status da Obra</p>
                 </div>
 
-                <!-- Anuais -->
                 <div class="bg-white rounded-[2.5rem] card-shadow p-8 border border-white">
                     <h3 class="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">Parcelas Anuais (Balão)</h3>
                     <div id="anuais-list" class="space-y-4"></div>
@@ -342,14 +345,13 @@
             const data = window.getAppData();
             if(!data) return;
 
-            // Update Config Display
-            document.getElementById('conf-obra-label').textContent = data.config.statusObra.toFixed(2) + '%';
+            document.getElementById('conf-obra-label').textContent = (data.config.statusObra || 0).toFixed(2) + '%';
             document.getElementById('conf-obra-range').value = data.config.statusObra;
             document.getElementById('conf-finan').value = data.config.totalFinanciamento;
             document.getElementById('conf-entrada').value = data.config.totalEntrada;
             document.getElementById('conf-data-finan').value = data.config.dataFinanciamento;
             
-            const perc = data.config.statusObra;
+            const perc = data.config.statusObra || 0;
             document.getElementById('obra-perc-text').textContent = Math.floor(perc) + '%';
             document.getElementById('obra-circle').style.strokeDashoffset = 440 - (440 * perc) / 100;
 
@@ -358,7 +360,7 @@
             let totalEntradaPaga = data.config.saldoInicial || 0;
             let totalObraPaga = 0;
 
-            data.payments.forEach((p, i) => {
+            (data.payments || []).forEach((p, i) => {
                 totalEntradaPaga += (p.entrada_pago || 0);
                 totalObraPaga += (p.evo_pago || 0);
                 
@@ -395,10 +397,9 @@
                 tbody.appendChild(tr);
             });
 
-            // Render Anuais
             const anuaisList = document.getElementById('anuais-list');
             anuaisList.innerHTML = '';
-            data.anuais.forEach((a, idx) => {
+            (data.anuais || []).forEach((a, idx) => {
                 if(a.pago) totalEntradaPaga += a.valor;
                 const div = document.createElement('div');
                 div.className = `p-5 rounded-[1.5rem] border-2 transition-all flex justify-between items-center cursor-pointer ${a.pago ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`;
@@ -413,7 +414,6 @@
                 anuaisList.appendChild(div);
             });
 
-            // Render Poupanca
             const pList = document.getElementById('poupanca-list');
             pList.innerHTML = '';
             let totalPoup = 0;
@@ -428,7 +428,6 @@
                 pList.appendChild(div);
             });
 
-            // Dashboard Update
             document.getElementById('dash-entrada').textContent = fmt(totalEntradaPaga);
             document.getElementById('dash-falta-entrada').textContent = `FALTAM ${fmt(data.config.totalEntrada - totalEntradaPaga)}`;
             document.getElementById('dash-obra').textContent = fmt(totalObraPaga);
@@ -439,6 +438,7 @@
     </script>
 </body>
 </html>
+
 
 
 
