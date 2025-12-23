@@ -246,6 +246,8 @@
                         onSnapshot(doc(db, ...docPath), (snap) => {
                             if (snap.exists()) { 
                                 window.currentData = snap.data(); 
+                                // Garantir que arrays existam se vierem nulos do banco
+                                if(!window.currentData.cronogramaEvo) window.currentData.cronogramaEvo = gerarCronogramaCompleto();
                                 window.renderAll(); 
                             } else { 
                                 window.saveDataCloud(); 
@@ -524,8 +526,12 @@
 
                 data.cronogramaEvo.forEach((item, i) => {
                     if (!item) return;
-                    const pagoVal = parseFloat(item.valorPago) || 0;
-                    if(item.pago) somaEvoPaga += pagoVal;
+                    
+                    // Lógica corrigida: Soma apenas o que estiver marcado como 'pago'
+                    const valorDestaLinha = parseFloat(item.valorPago) || 0;
+                    if(item.pago === true) {
+                        somaEvoPaga += valorDestaLinha;
+                    }
                     
                     const lastPagoIdx = [...data.cronogramaEvo].reverse().findIndex(x => x && x.pago);
                     const actualLastIdx = lastPagoIdx === -1 ? -1 : data.cronogramaEvo.length - 1 - lastPagoIdx;
@@ -543,7 +549,7 @@
                             </td>
                             <td class="p-4">
                                 <span class="block text-[8px] text-gray-400 text-center">Previsto: ${fmt(previsto)}</span>
-                                <input type="number" value="${item.valorPago || 0}" onchange="window.updateEvoValue(${i}, this.value)" class="input-editable ${item.pago ? 'text-emerald-600' : 'text-gray-400'}">
+                                <input type="number" value="${valorDestaLinha}" onchange="window.updateEvoValue(${i}, this.value)" class="input-editable ${item.pago ? 'text-emerald-600' : 'text-gray-400'}">
                             </td>
                             <td class="p-4 text-right">
                                 <button onclick="window.toggleEvoPago(${i})" class="w-8 h-8 rounded-full transition-all ${item.pago ? 'bg-emerald-500 text-white shadow-lg' : 'bg-gray-100 text-gray-300'}">
@@ -643,7 +649,6 @@
     </script>
 </body>
 </html>
-
 
 
 
