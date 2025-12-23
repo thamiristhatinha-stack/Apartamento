@@ -25,7 +25,6 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'apartamento-d328e-prod';
         const docPath = ["artifacts", appId, "public", "data", "finance_tracker", "finance-main"];
 
-        // Cronograma exato extraído do documento CAIXA
         const cronogramaOficial = [
             { etapa: 1, data: '26/09/2025', percMes: 4.20, percAcum: 4.20, pago: true, valorPago: 184.57 },
             { etapa: 2, data: '21/10/2025', percMes: 2.10, percAcum: 6.30, pago: true, valorPago: 224.90 },
@@ -72,7 +71,9 @@
                 valorApartamento: 255883.47,
                 totalFinanciamento: 218149.62,
                 totalEntrada: 37733.85,
-                saldoInicial: 4999.90
+                saldoInicial: 4999.90,
+                previstoEvo: 10567.14,
+                percObraMedido: 9.19
             },
             payments: cronogramaOficial.map(item => ({
                 month: item.data.split('/')[1] + '/' + item.data.split('/')[2].slice(-2),
@@ -118,6 +119,53 @@
             renderAll();
         };
 
+        // Função para atualizar progresso da obra com efeitos
+        window.updateObraPerc = (newVal) => {
+            const oldVal = currentData.config.percObraMedido || 0;
+            const val = parseFloat(newVal);
+            currentData.config.percObraMedido = val;
+            
+            // Lógica de confetes a cada 5%
+            const oldMilestone = Math.floor(oldVal / 5);
+            const newMilestone = Math.floor(val / 5);
+            
+            if (newMilestone > oldMilestone && val > 0) {
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#ec4899', '#a855f7', '#fbbf24']
+                });
+                showMotiveMessage(val);
+            }
+
+            window.saveDataCloud();
+            renderAll();
+        };
+
+        const motiveMessages = [
+            "Cada tijolo conta! O sonho está subindo! 🏠",
+            "Mais um degrau rumo ao nosso cantinho! ✨",
+            "Deus é fiel em cada detalhe dessa obra! 🙌",
+            "Olha só como está ficando lindo! Nosso 92! ❤️",
+            "Falta menos que ontem! Vamos Thami e Felipe! 💪",
+            "Onde houver amor, haverá um lar. Quase lá! 🗝️",
+            "Celebrando cada conquista do nosso Apzinho! 🥂"
+        ];
+
+        function showMotiveMessage(perc) {
+            const msgBox = document.getElementById('motive-toast');
+            const msgText = document.getElementById('motive-text');
+            const randomMsg = motiveMessages[Math.floor(Math.random() * motiveMessages.length)];
+            
+            msgText.innerText = `Batemos ${perc.toFixed(0)}%! ${randomMsg}`;
+            msgBox.classList.remove('translate-y-full', 'opacity-0');
+            
+            setTimeout(() => {
+                msgBox.classList.add('translate-y-full', 'opacity-0');
+            }, 5000);
+        }
+
         async function initApp() {
             try {
                 firebaseApp = initializeApp(firebaseConfig);
@@ -153,17 +201,34 @@
         .bg-header { background: linear-gradient(135deg, var(--purple-primary) 0%, var(--pink-primary) 100%); }
         .card-shadow { box-shadow: 0 10px 30px -5px rgba(168, 85, 247, 0.15); border-radius: 1.5rem; }
         .input-editable { background: rgba(255,255,255,0.6); border: 1px solid #fee2e2; border-radius: 10px; padding: 6px; width: 100%; text-align: center; font-size: 13px; font-weight: 800; color: #333; }
-        .progress-container { height: 48px; background: #fdf2f8; border-radius: 16px; overflow: hidden; border: 3px solid #fce7f3; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--pink-primary), var(--purple-primary)); transition: width 1s ease; }
+        
+        /* Barra de Progresso Interativa */
+        .progress-container { height: 48px; background: #fdf2f8; border-radius: 16px; overflow: hidden; border: 3px solid #fce7f3; position: relative; cursor: pointer; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--pink-primary), var(--purple-primary)); transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .progress-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
+        
         .floating-nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); padding: 8px 20px; border-radius: 30px; z-index: 100; display: flex; gap: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         .floating-nav a { color: white; font-size: 18px; opacity: 0.6; }
         .medido-badge { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; }
         .previsto-badge { background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; }
         .btn-toggle { font-size: 10px; font-weight: 900; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; transition: all 0.2s; }
         .item-glow { filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.9)); }
+        
+        /* Toast Animado */
+        #motive-toast { transition: all 0.5s ease; }
     </style>
 </head>
 <body class="pb-24">
+
+    <!-- Toast de Mensagem Motivacional -->
+    <div id="motive-toast" class="fixed bottom-24 left-4 right-4 z-[200] transform translate-y-full opacity-0 pointer-events-none">
+        <div class="bg-gradient-to-r from-pink-500 to-purple-600 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 border-2 border-white/20 backdrop-blur-lg">
+            <div class="bg-white/20 p-3 rounded-full">
+                <i class="fas fa-heart text-2xl animate-beat"></i>
+            </div>
+            <p id="motive-text" class="font-black text-sm leading-tight"></p>
+        </div>
+    </div>
 
     <header class="bg-header text-white pb-20 pt-12 px-4 rounded-b-[4rem] text-center shadow-2xl relative">
         <div class="mb-4 flex justify-center items-center gap-4">
@@ -189,37 +254,88 @@
 
     <main class="max-w-5xl mx-auto px-4 -mt-12 space-y-8 relative z-10">
         
-        <!-- Dashboards Principais -->
+        <!-- Dashboard Principal: Investimento Total -->
+        <div class="bg-white p-6 card-shadow border-t-8 border-green-500 text-center">
+            <div class="flex justify-center items-center gap-2 mb-2">
+                <i class="fas fa-vault text-green-500 text-lg"></i>
+                <p class="text-[11px] font-black text-green-600 uppercase tracking-widest">Total Investido no Apzinho</p>
+            </div>
+            <h2 class="text-3xl font-black text-gray-800" id="dash-total-geral">R$ 0,00</h2>
+            <p class="text-[9px] text-gray-400 font-bold mt-1 uppercase">(Entrada + Evolução + Anuais Pagos)</p>
+        </div>
+
+        <!-- Dashboards de Comparativo -->
         <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <!-- Cartão Entrada -->
             <div class="bg-white p-5 card-shadow border-b-4 border-pink-400">
-                <p class="text-[10px] font-black text-pink-400 uppercase">Total Pago</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-total-pago">R$ 0,00</h2>
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fas fa-wallet text-pink-400 text-xs"></i>
+                    <p class="text-[9px] font-black text-pink-400 uppercase">Entrada Paga</p>
+                </div>
+                <h2 class="text-lg font-black text-gray-800" id="dash-total-pago">R$ 0,00</h2>
+                <div class="mt-2 pt-2 border-t border-pink-50 flex items-center gap-1">
+                    <p class="text-[8px] font-bold text-gray-400 uppercase">Previsto:</p>
+                    <p class="text-[10px] font-black text-pink-300" id="dash-entrada-previsto">R$ 37.733,85</p>
+                </div>
             </div>
+
+            <!-- Cartão Evolução -->
             <div class="bg-white p-5 card-shadow border-b-4 border-blue-400">
-                <p class="text-[10px] font-black text-blue-400 uppercase">Evolução Obra</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-evo-pago">R$ 0,00</h2>
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fas fa-hammer text-blue-400 text-xs"></i>
+                    <p class="text-[9px] font-black text-blue-400 uppercase">Evo. Obra Paga</p>
+                </div>
+                <h2 class="text-lg font-black text-gray-800" id="dash-evo-pago">R$ 0,00</h2>
+                <div class="mt-2 pt-2 border-t border-blue-50 flex items-center gap-1">
+                    <p class="text-[8px] font-bold text-gray-400 uppercase">Previsto:</p>
+                    <p class="text-[10px] font-black text-blue-300" id="dash-evo-previsto">R$ 10.567,14</p>
+                </div>
             </div>
+
+            <!-- Cartão Cofrinho -->
             <div class="bg-white p-5 card-shadow border-b-4 border-yellow-400">
-                <p class="text-[10px] font-black text-yellow-600 uppercase">No Cofrinho</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-poupanca">R$ 0,00</h2>
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fas fa-piggy-bank text-yellow-600 text-xs"></i>
+                    <p class="text-[9px] font-black text-yellow-600 uppercase">No Cofrinho</p>
+                </div>
+                <h2 class="text-lg font-black text-gray-800" id="dash-poupanca">R$ 0,00</h2>
+                <div class="mt-2 pt-2 border-t border-yellow-50">
+                    <p class="text-[8px] font-bold text-yellow-600 uppercase">Reserva Estratégica</p>
+                </div>
             </div>
-            <div class="bg-white p-5 card-shadow border-b-4 border-purple-500">
-                <p class="text-[10px] font-black text-purple-400 uppercase">Saldo Devedor</p>
-                <h2 class="text-lg md:text-xl font-black text-gray-800" id="dash-saldo-devedor">R$ 0,00</h2>
+
+            <!-- Cartão Financiamento -->
+            <div class="bg-white p-5 card-shadow border-b-4 border-purple-400">
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fas fa-file-contract text-purple-400 text-xs"></i>
+                    <p class="text-[9px] font-black text-purple-400 uppercase">Financiado</p>
+                </div>
+                <h2 class="text-lg font-black text-gray-800" id="dash-finan-total">R$ 0,00</h2>
+                <div class="mt-2 pt-2 border-t border-purple-50">
+                    <p class="text-[8px] font-bold text-purple-400 uppercase">Saldo Bancário</p>
+                </div>
             </div>
         </div>
 
-        <!-- Progresso e Detalhes da Obra -->
+        <!-- Progresso e Detalhes da Obra INTERATIVO -->
         <section id="obra" class="bg-white card-shadow p-8 border border-purple-100">
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h3 class="font-black text-gray-700 text-sm uppercase mb-1">Status Oficial da Obra</h3>
-                    <p class="text-[10px] text-gray-400" id="resumo-medicao">Medido em Dez/25: 9.19%</p>
+                    <p class="text-[10px] text-gray-400">Arraste a barra para atualizar a medição!</p>
                 </div>
                 <div id="obra-perc" class="text-4xl font-black text-purple-600">0%</div>
             </div>
-            <div class="progress-container mb-6">
+            
+            <!-- Barra Interativa -->
+            <div class="progress-container mb-6 group">
                 <div id="obra-bar" class="progress-fill" style="width: 0%"></div>
+                <input type="range" min="0" max="100" step="0.01" class="progress-input" id="obra-slider" oninput="window.updateObraPerc(this.value)">
+                
+                <!-- Overlay de indicação visual -->
+                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                    <span class="text-[10px] font-black text-white bg-black/20 px-3 py-1 rounded-full uppercase">Toque e deslize</span>
+                </div>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100">
@@ -236,7 +352,7 @@
                 <div class="space-y-3">
                     <div class="flex justify-between text-xs font-bold">
                         <span class="text-gray-400 uppercase">Total Entrada:</span>
-                        <span class="text-pink-500" id="detalhe-valor-entrada">R$ 0,00</span>
+                        <span class="text-pink-500" id="detalhe-valor-entrada">R$ 37.733,85</span>
                     </div>
                     <div class="flex justify-between text-xs font-bold">
                         <span class="text-gray-400 uppercase">Restante Entrada:</span>
@@ -278,7 +394,7 @@
                         Ver mais
                     </button>
                 </div>
-                <div class="text-[9px] text-blue-400 font-bold bg-blue-50 px-2 py-1 rounded">PROJEÇÃO BASEADA NO PAGO</div>
+                <div class="text-[9px] text-blue-400 font-bold bg-blue-50 px-2 py-1 rounded uppercase">Estimado pelo último pago</div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-center">
@@ -303,7 +419,7 @@
 
         <!-- Cofrinho -->
         <section id="cofrinho" class="bg-white card-shadow p-8 border-2 border-dashed border-yellow-300">
-            <h3 class="font-black text-gray-700 text-sm uppercase mb-4">Poupanca do Apzinho</h3>
+            <h3 class="font-black text-gray-700 text-sm uppercase mb-4">Poupança do Apzinho</h3>
             <div class="bg-yellow-50 p-6 rounded-3xl flex items-center gap-4 mb-4">
                 <i class="fas fa-piggy-bank text-yellow-500 text-3xl"></i>
                 <div class="flex-1">
@@ -337,12 +453,6 @@
             let somaEvoPaga = 0;
             let somaAnualPaga = 0;
             
-            // Cálculo da Média de Custo por 1% de Obra (Baseado nos 4 meses pagos)
-            const mesesPagos = cronograma.filter(c => c.pago);
-            const totalPagoEvoHistorico = mesesPagos.reduce((acc, curr) => acc + curr.valorPago, 0);
-            const totalPercMedidoHistorico = mesesPagos.reduce((acc, curr) => acc + curr.percMes, 0);
-            const custoPorUmPorcento = totalPagoEvoHistorico / totalPercMedidoHistorico;
-
             // Render Entrada
             const tEntrada = document.getElementById('table-entrada');
             tEntrada.innerHTML = '';
@@ -364,13 +474,17 @@
             tEvo.innerHTML = '';
             document.getElementById('btn-show-evo').textContent = showAllEvo ? "Ver menos" : "Ver mais";
 
+            // Cálculo da Média para projeção dinâmica
+            const mesesPagos = cronograma.filter(c => c.pago);
+            const totalPagoEvoHistorico = mesesPagos.reduce((acc, curr) => acc + curr.valorPago, 0);
+            const totalPercMedidoHistorico = mesesPagos.reduce((acc, curr) => acc + curr.percMes, 0);
+            const custoPorUmPorcento = totalPagoEvoHistorico / totalPercMedidoHistorico;
+
             cronograma.forEach((item, i) => {
-                // Se já pagou, usa o valor real. Se não, projeta baseado no custo médio por 1%
                 let valorEtapa = item.pago ? item.valorPago : (item.percMes * custoPorUmPorcento);
-                somaEvoPaga += valorEtapa;
+                if(item.pago) somaEvoPaga += valorEtapa;
                 
                 if (!showAllEvo && i > 3) return;
-
                 const situacao = item.pago ? 'Paga' : 'Prevista';
                 const badge = item.pago ? 'medido-badge' : 'previsto-badge';
 
@@ -382,9 +496,7 @@
                         </td>
                         <td class="p-4 font-black text-blue-500 text-[11px]">${item.percMes.toFixed(2)}%</td>
                         <td class="p-4 font-black text-gray-700 text-[12px]">${fmt(valorEtapa)}</td>
-                        <td class="p-4">
-                            <span class="${badge}">${situacao}</span>
-                        </td>
+                        <td class="p-4"><span class="${badge}">${situacao}</span></td>
                     </tr>
                 `;
             });
@@ -407,33 +519,32 @@
                 `;
             });
 
-            // Cálculos Finais de Contrato
-            const totalGeralPago = somaEntradaPaga + somaEvoPaga + somaAnualPaga;
-            const saldoDevedor = data.config.valorApartamento - totalGeralPago;
-            const percQuitado = (totalGeralPago / data.config.valorApartamento) * 100;
-            const restanteEntrada = data.config.totalEntrada - somaEntradaPaga;
-
             // Dashboards
-            document.getElementById('dash-total-pago').textContent = fmt(totalGeralPago);
+            const totalGeralPago = somaEntradaPaga + somaEvoPaga + somaAnualPaga;
+            document.getElementById('dash-total-geral').textContent = fmt(totalGeralPago);
+            document.getElementById('dash-total-pago').textContent = fmt(somaEntradaPaga);
+            document.getElementById('dash-entrada-previsto').textContent = fmt(data.config.totalEntrada);
             document.getElementById('dash-evo-pago').textContent = fmt(somaEvoPaga);
+            document.getElementById('dash-evo-previsto').textContent = fmt(data.config.previstoEvo);
             document.getElementById('dash-poupanca').textContent = fmt(data.poupanca.valorAtual);
-            document.getElementById('dash-saldo-devedor').textContent = fmt(saldoDevedor);
             document.getElementById('input-cofrinho').value = data.poupanca.valorAtual;
+            document.getElementById('dash-finan-total').textContent = fmt(data.config.totalFinanciamento);
 
             // Detalhes da Obra
-            const percObraReal = 9.19; // Última medição conhecida
+            const percObraReal = data.config.percObraMedido || 0; 
             document.getElementById('obra-perc').textContent = percObraReal.toFixed(2) + '%';
             document.getElementById('obra-bar').style.width = percObraReal + '%';
-            document.getElementById('resumo-medicao').textContent = `Medido em Dez/25: ${percObraReal}%`;
+            document.getElementById('obra-slider').value = percObraReal;
             
             document.getElementById('detalhe-valor-ap').textContent = fmt(data.config.valorApartamento);
             document.getElementById('detalhe-valor-finan').textContent = fmt(data.config.totalFinanciamento);
             document.getElementById('detalhe-valor-entrada').textContent = fmt(data.config.totalEntrada);
-            document.getElementById('detalhe-restante-entrada').textContent = fmt(restanteEntrada);
+            document.getElementById('detalhe-restante-entrada').textContent = fmt(data.config.totalEntrada - somaEntradaPaga);
         }
     </script>
 </body>
 </html>
+
 
 
 
