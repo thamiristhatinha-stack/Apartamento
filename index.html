@@ -2,439 +2,295 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nosso Apzinho 92 - Thamirinha & Felipinho</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thamiris & Felipe | Fotografia</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Great+Vibes&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
-    
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Configurações do Firebase com fallback seguro
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyAeFtVA7Yg-DD8knaa9OxCPSoRnBKiUINk",
-            authDomain: "apartamento-d328e.firebaseapp.com",
-            projectId: "apartamento-d328e",
-            storageBucket: "apartamento-d328e.firebasestorage.app",
-            messagingSenderId: "206733797802",
-            appId: "1:206733797802:web:52fe508854e1c0d09d63d3"
-        };
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'apartamento-d328e-prod';
-        const docPath = ["artifacts", appId, "public", "data", "finance_tracker", "finance-main"];
-
-        let auth, db;
-        
-        // Função para gerar o cronograma completo (base da evolução de obra)
-        const gerarCronogramaCompleto = () => {
-            const inicio = new Date(2025, 8, 26);
-            const fim = new Date(2028, 5, 1);
-            const cronograma = [];
-            let dataAtual = new Date(inicio);
-            let etapa = 1;
-            let percAcumulado = 4.20;
-
-            const dadosIniciais = {
-                1: { percAcum: 4.20, valor: 184.57, pago: true },
-                2: { percAcum: 6.30, valor: 224.90, pago: true },
-                3: { percAcum: 7.31, valor: 274.23, pago: true },
-                4: { percAcum: 9.19, valor: 287.42, pago: true }
-            };
-
-            while (dataAtual <= fim) {
-                const dia = dataAtual.getDate().toString().padStart(2, '0');
-                const mes = (dataAtual.getMonth() + 1).toString().padStart(2, '0');
-                const ano = dataAtual.getFullYear();
-                const infoInicial = dadosIniciais[etapa];
-                
-                cronograma.push({
-                    etapa: etapa,
-                    data: `${dia}/${mes}/${ano}`,
-                    percAcum: infoInicial ? infoInicial.percAcum : Math.min(100, percAcumulado + (90.81 / 30)),
-                    pago: infoInicial ? infoInicial.pago : false,
-                    valorPago: infoInicial ? infoInicial.valor : 0
-                });
-
-                dataAtual.setMonth(dataAtual.getMonth() + 1);
-                etapa++;
-                if (!infoInicial) percAcumulado += (90.81 / 30);
-            }
-            return cronograma;
-        };
-
-        // Dados iniciais padrão
-        const defaultData = {
-            config: {
-                valorApartamento: 255883.47,
-                totalFinanciamento: 218149.62,
-                totalEntrada: 37733.85,
-                percObraMedido: 9.19,
-                dataEntregaChaves: "2028-06-01",
-                taxaJurosAnual: 9.5
-            },
-            payments: [
-                { month: 'Saldo Inicial', entrada_previsto: 4999.90, entrada_pago: 4999.90 },
-                { month: 'Set/25', entrada_previsto: 1078.11, entrada_pago: 1018.66 },
-                { month: 'Out/25', entrada_previsto: 1078.11, entrada_pago: 1018.66 },
-                { month: 'Nov/25', entrada_previsto: 1078.11, entrada_pago: 1018.66 },
-                { month: 'Dez/25', entrada_previsto: 1078.11, entrada_pago: 0 }
-            ],
-            cronogramaEvo: gerarCronogramaCompleto(),
-            anuais: [
-                { id: 1, label: 'Anual 1 (Dez/25)', valor: 2500.00, pago: true },
-                { id: 2, label: 'Anual 2 (Dez/26)', valor: 2500.00, pago: false },
-                { id: 3, label: 'Anual 3 (Dez/27)', valor: 2500.00, pago: false }
-            ],
-            poupanca: { valorAtual: 0 },
-            financiamentoAtivo: false,
-            pagamentosFinanciamento: [],
-            amortizacoes: []
-        };
-
-        window.currentData = defaultData;
-        window.showAllEvo = false;
-
-        // Salvar na nuvem
-        window.saveDataCloud = async function() {
-            if (!auth?.currentUser) return;
-            try { 
-                await setDoc(doc(db, ...docPath), window.currentData); 
-            } catch (e) { console.error("Erro ao salvar:", e); }
-        };
-
-        window.getAppData = () => window.currentData;
-
-        // Funções Globais de Update
-        window.updateField = (i, field, val) => {
-            window.currentData.payments[i][field] = parseFloat(val) || 0;
-            window.renderAll();
-            window.saveDataCloud();
-        };
-
-        window.addEntradaMonth = () => {
-            const lastMonth = window.currentData.payments[window.currentData.payments.length - 1];
-            let newLabel = "Próximo Mês";
-            if (lastMonth && lastMonth.month.includes('/')) {
-                const parts = lastMonth.month.split('/');
-                const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                let monthIdx = months.indexOf(parts[0]);
-                let year = parseInt(parts[1]);
-                monthIdx++;
-                if (monthIdx > 11) { monthIdx = 0; year++; }
-                newLabel = `${months[monthIdx]}/${year.toString().slice(-2)}`;
-            }
-            window.currentData.payments.push({ month: newLabel, entrada_previsto: 0, entrada_pago: 0 });
-            window.renderAll();
-            window.saveDataCloud();
-        };
-
-        window.updateEvoValue = (i, val) => {
-            if (!window.currentData.cronogramaEvo[i]) return;
-            window.currentData.cronogramaEvo[i].valorPago = parseFloat(val) || 0;
-            window.renderAll();
-            window.saveDataCloud();
-        };
-
-        window.toggleEvoPago = (i) => {
-            if (!window.currentData.cronogramaEvo[i]) return;
-            const item = window.currentData.cronogramaEvo[i];
-            item.pago = !item.pago;
-            if(item.pago) confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-            window.renderAll();
-            window.saveDataCloud();
-        };
-
-        window.updateObraPerc = (newVal) => {
-            const oldVal = window.currentData.config.percObraMedido || 0;
-            const value = parseFloat(newVal) || 0;
-            window.currentData.config.percObraMedido = value;
-            if(value > oldVal) confetti({ particleCount: 200, spread: 100 });
-            window.renderAll();
-            window.saveDataCloud();
-        };
-
-        window.updateCofrinho = (val) => { 
-            window.currentData.poupanca.valorAtual = parseFloat(val) || 0; 
-            window.renderAll();
-            window.saveDataCloud(); 
-        };
-
-        window.toggleAnual = (idx) => { 
-            window.currentData.anuais[idx].pago = !window.currentData.anuais[idx].pago; 
-            window.renderAll(); 
-            window.saveDataCloud(); 
-        };
-
-        window.toggleShowAllEvo = () => { window.showAllEvo = !window.showAllEvo; window.renderAll(); };
-
-        // Inicialização do App com correção de Auth
-        async function initApp() {
-            try {
-                const firebaseApp = initializeApp(firebaseConfig);
-                auth = getAuth(firebaseApp);
-                db = getFirestore(firebaseApp);
-
-                const login = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        try {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } catch (e) {
-                            await signInAnonymously(auth);
-                        }
-                    } else { 
-                        await signInAnonymously(auth); 
-                    }
-                };
-
-                await login();
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        onSnapshot(doc(db, ...docPath), (snap) => {
-                            if (snap.exists()) { 
-                                const data = snap.data();
-                                if(!data.cronogramaEvo || data.cronogramaEvo.length === 0) {
-                                    data.cronogramaEvo = gerarCronogramaCompleto();
-                                }
-                                window.currentData = data;
-                                window.renderAll(); 
-                            } else { 
-                                window.saveDataCloud(); 
-                                window.renderAll();
-                            }
-                        }, (err) => console.error("Erro snapshot:", err));
-                    }
-                });
-            } catch (e) { console.error("Erro fatal:", e); }
-        }
-        window.addEventListener('load', initApp);
-    </script>
-
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --pink-light: #fff5f7; --pink-mid: #f472b6; --pink-dark: #db2777; --pink-soft: #fce7f3; }
-        body { font-family: 'Nunito', sans-serif; background-color: #fffafb; color: #4a5568; overflow-x: hidden; scroll-behavior: smooth; }
-        .modern-header { background: white; padding: 40px 20px; text-align: center; border-bottom: 1px solid var(--pink-soft); }
-        .card-shadow { background: white; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); border-radius: 2rem; border: 1px solid #f9f9f9; position: relative; overflow: hidden; }
-        .signature { font-family: 'Great Vibes', cursive; color: var(--pink-mid); font-weight: normal; }
-        .verse { font-family: 'Dancing Script', cursive; color: #94a3b8; font-size: 1.1rem; max-width: 300px; margin: 10px auto; line-height: 1.2; }
-        .input-editable { background: #fdf2f8; border: 1px solid transparent; border-radius: 10px; padding: 6px; width: 100%; text-align: center; font-size: 14px; font-weight: 700; color: #333; }
-        .progress-container { height: 16px; background: #fce7f3; border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, #f472b6, #db2777); transition: width 1s ease-in-out; }
-        .floating-nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); padding: 10px 20px; border-radius: 30px; z-index: 100; display: flex; gap: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); }
-        .floating-nav a { color: #d1d5db; font-size: 18px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
-        .watermark-icon { position: absolute; right: -10px; bottom: -10px; font-size: 5rem; opacity: 0.04; transform: rotate(-15deg); pointer-events: none; }
-        .blessing-text { font-family: 'Dancing Script', cursive; color: #db2777; font-size: 1.2rem; }
+        body { font-family: 'Lato', sans-serif; }
+        .font-serif-display { font-family: 'Cormorant Garamond', serif; }
+        .grayscale-img { filter: grayscale(100%); transition: all 0.8s ease; }
+        .group:hover .grayscale-img { filter: grayscale(0%); transform: scale(1.05); }
+        .hero-img { filter: brightness(0.6); animation: slowZoom 30s infinite alternate ease-in-out; }
+        @keyframes slowZoom { from { transform: scale(1); } to { transform: scale(1.1); } }
+        [v-cloak] { display: none; }
     </style>
 </head>
-<body class="pb-32">
+<body class="bg-stone-50 text-stone-800">
 
-    <header class="modern-header">
-        <h1 class="text-3xl font-black text-gray-800 tracking-tight">Nosso Apzinho 92</h1>
-        <p class="signature text-4xl mt-2">Thamirinha & Felipinho</p>
-        <p class="verse">"Entrega o teu caminho ao Senhor; confia nele, e ele tudo fará."<br><span class="text-xs font-sans font-bold opacity-60">(Salmos 37:5)</span></p>
-    </header>
+    <div id="root"></div>
 
-    <main class="max-w-4xl mx-auto px-4 mt-8 space-y-6">
-        
-        <!-- Dashboard Principal -->
-        <div class="bg-emerald-500 p-8 card-shadow text-center text-white shadow-xl">
-            <i class="fas fa-hand-holding-usd watermark-icon" style="opacity: 0.1"></i>
-            <p class="text-[10px] font-black text-emerald-100 uppercase tracking-widest mb-2">Total Investido (Pré-Chaves)</p>
-            <h2 class="text-5xl font-black tracking-tighter" id="dash-total-geral">R$ 0,00</h2>
-        </div>
+    <!-- React and Libraries -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-        <!-- Grid de Resumo -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-white p-5 card-shadow text-center border-t-4 border-pink-400">
-                <i class="fas fa-door-open watermark-icon"></i>
-                <p class="text-[9px] font-black text-gray-400 uppercase">Entrada Paga</p>
-                <h3 class="text-lg font-black text-pink-500" id="dash-total-pago">R$ 0,00</h3>
-            </div>
-            <div class="bg-white p-5 card-shadow text-center border-t-4 border-blue-400">
-                <i class="fas fa-gift watermark-icon"></i>
-                <p class="text-[9px] font-black text-gray-400 uppercase">Anuais Pagos</p>
-                <h3 class="text-lg font-black text-blue-400" id="dash-total-anuais">R$ 0,00</h3>
-            </div>
-            <div class="bg-white p-5 card-shadow text-center border-t-4 border-orange-400">
-                <i class="fas fa-piggy-bank watermark-icon"></i>
-                <p class="text-[9px] font-black text-gray-400 uppercase">No Cofrinho</p>
-                <h3 class="text-lg font-black text-orange-500" id="dash-cofrinho-val">R$ 0,00</h3>
-            </div>
-            <div class="bg-white p-5 card-shadow text-center border-t-4 border-emerald-400">
-                <i class="fas fa-chart-line watermark-icon"></i>
-                <p class="text-[9px] font-black text-gray-400 uppercase">Evolução Paga</p>
-                <h3 class="text-lg font-black text-emerald-500" id="dash-total-evo">R$ 0,00</h3>
-            </div>
-        </div>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        <!-- Barra de Evolução de Obra -->
-        <section class="bg-white card-shadow p-6">
-            <i class="fas fa-building watermark-icon"></i>
-            <div class="flex justify-between items-end mb-4">
-                <h3 class="font-black text-gray-800 text-xs uppercase tracking-widest">Progresso da Obra</h3>
-                <div class="flex items-baseline gap-1">
-                    <input type="number" id="input-perc-obra" step="0.01" class="w-16 text-2xl font-black text-pink-600 text-right bg-transparent focus:outline-none" onchange="window.updateObraPerc(this.value)">
-                    <span class="font-black text-pink-600">%</span>
-                </div>
-            </div>
-            <div class="progress-container">
-                <div id="obra-bar" class="progress-fill" style="width: 0%"></div>
-            </div>
-        </section>
+        window.FirebaseLib = { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot };
+    </script>
 
-        <!-- Mensais de Evolução -->
-        <section id="evo" class="bg-white card-shadow overflow-hidden">
-            <div class="p-6 border-b border-gray-50 flex justify-between items-center">
-                <h4 class="font-black text-gray-800 text-xs uppercase tracking-widest">Juros de Evolução</h4>
-                <button onclick="window.toggleShowAllEvo()" id="btn-show-evo" class="text-[9px] font-black uppercase text-blue-400 px-3 py-1 bg-blue-50 rounded-full">Ver Tudo</button>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-center">
-                    <tbody id="table-obra-list" class="divide-y divide-gray-50"></tbody>
-                </table>
-            </div>
-        </section>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-        <!-- Anuais -->
-        <section id="anuais" class="bg-white card-shadow overflow-hidden">
-            <div id="lista-anuais" class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-50"></div>
-        </section>
+        // --- ÍCONES SVG INLINE (Para evitar erro de carregamento de biblioteca externa) ---
+        const IconMenu = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>;
+        const IconX = ({size=24}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const IconLock = ({size=12}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 
-        <!-- Plano de Entrada -->
-        <section id="entrada" class="bg-white card-shadow overflow-hidden">
-            <div class="p-6 border-b border-gray-50 flex justify-between items-center">
-                <h4 class="font-black text-gray-800 text-xs uppercase tracking-widest">Plano de Entrada</h4>
-                <button onclick="window.addEntradaMonth()" class="text-[9px] font-black uppercase text-pink-500 px-3 py-1 bg-pink-50 rounded-full hover:bg-pink-100 transition-colors">
-                    <i class="fas fa-plus mr-1"></i> Add Mês
-                </button>
-            </div>
-            <table class="w-full">
-                <tbody id="table-entrada" class="divide-y divide-gray-50"></tbody>
-            </table>
-        </section>
-
-        <!-- Cofrinho -->
-        <section id="cofrinho" class="bg-white card-shadow p-10 text-center">
-            <p class="blessing-text mb-1">"O pouco com Deus é muito"</p>
-            <p class="text-[10px] font-black text-gray-400 uppercase mb-4">Reserva Estratégica</p>
-            <div class="flex items-center justify-center gap-2 mb-4">
-                <span class="text-2xl font-black text-gray-400">R$</span>
-                <input type="number" id="input-cofrinho" step="0.01" onchange="window.updateCofrinho(this.value)" class="text-4xl font-black bg-transparent text-gray-800 focus:outline-none text-center w-48">
-            </div>
-        </section>
-
-    </main>
-
-    <nav class="floating-nav">
-        <a href="#entrada"><i class="fas fa-list-ul"></i></a>
-        <a href="#anuais"><i class="fas fa-calendar-alt"></i></a>
-        <a href="#evo"><i class="fas fa-chart-line"></i></a>
-        <a href="#cofrinho"><i class="fas fa-piggy-bank"></i></a>
-    </nav>
-
-    <script>
-        const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
-
-        window.renderAll = function() {
-            const data = window.getAppData();
-            if(!data || !data.config) return;
-
-            let somaEntradaPaga = 0;
-            let somaEvoPaga = 0;
-            let somaAnuaisPagos = 0;
-
-            // Anuais
-            const divAnuais = document.getElementById('lista-anuais');
-            if (divAnuais) {
-                divAnuais.innerHTML = '';
-                data.anuais?.forEach((an, idx) => {
-                    const val = Number(an.valor) || 0;
-                    if(an.pago) somaAnuaisPagos += val;
-                    divAnuais.innerHTML += `
-                        <div class="p-6 flex flex-col items-center">
-                            <p class="text-[9px] font-black text-gray-400 uppercase">${an.label}</p>
-                            <h5 class="text-sm font-black ${an.pago ? 'text-blue-500' : 'text-gray-300'}">${fmt(val)}</h5>
-                            <button onclick="window.toggleAnual(${idx})" class="mt-3 text-[10px] font-black px-4 py-1 rounded-full border transition-all ${an.pago ? 'bg-blue-400 border-blue-400 text-white' : 'border-gray-200 text-gray-400 hover:border-blue-200'}">
-                                ${an.pago ? 'PAGO' : 'MARCAR PAGO'}
-                            </button>
-                        </div>`;
-                });
-            }
-
-            // Entrada
-            const tEntrada = document.getElementById('table-entrada');
-            if (tEntrada) {
-                tEntrada.innerHTML = '';
-                data.payments?.forEach((p, i) => {
-                    const pagoVal = Number(p.entrada_pago) || 0;
-                    somaEntradaPaga += pagoVal;
-                    tEntrada.innerHTML += `
-                        <tr>
-                            <td class="p-4"><p class="font-black text-xs text-gray-600">${p.month}</p></td>
-                            <td class="p-4">
-                                <span class="block text-[8px] text-gray-400 uppercase font-bold mb-1">Pago</span>
-                                <input type="number" step="0.01" value="${pagoVal}" onchange="window.updateField(${i}, 'entrada_pago', this.value)" class="input-editable ${pagoVal > 0 ? 'text-pink-600' : 'text-gray-300'}">
-                            </td>
-                        </tr>`;
-                });
-            }
-
-            // Evolução
-            const tEvo = document.getElementById('table-obra-list');
-            if (tEvo && data.cronogramaEvo) {
-                tEvo.innerHTML = '';
-                const valFinan = Number(data.config.totalFinanciamento) || 218149.62;
-                const taxa = (Number(data.config.taxaJurosAnual) / 100) / 12;
-
-                data.cronogramaEvo.forEach((item, i) => {
-                    const valPago = Number(item.valorPago) || 0;
-                    if(item.pago) somaEvoPaga += valPago;
-                    
-                    const lastPagoIdx = [...data.cronogramaEvo].reverse().findIndex(x => x && x.pago);
-                    const actualLastIdx = lastPagoIdx === -1 ? -1 : data.cronogramaEvo.length - 1 - lastPagoIdx;
-
-                    if (!window.showAllEvo && i > (actualLastIdx + 3) && !item.pago) return;
-
-                    const percAcu = Number(item.percAcum) || 0;
-                    const previsto = (valFinan * (percAcu / 100)) * taxa;
-
-                    tEvo.innerHTML += `
-                        <tr>
-                            <td class="p-4">
-                                <p class="font-black text-xs text-gray-800">${item.data}</p>
-                                <p class="text-[9px] text-gray-400 font-bold">${percAcu.toFixed(2)}%</p>
-                            </td>
-                            <td class="p-4">
-                                <span class="block text-[8px] text-gray-400">Est: ${fmt(previsto)}</span>
-                                <input type="number" value="${valPago}" onchange="window.updateEvoValue(${i}, this.value)" class="input-editable ${item.pago ? 'text-emerald-600' : 'text-gray-400'}">
-                            </td>
-                            <td class="p-4">
-                                <button onclick="window.toggleEvoPago(${i})" class="w-8 h-8 rounded-full transition-all ${item.pago ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-300'}">
-                                    <i class="fas fa-check text-[10px]"></i>
-                                </button>
-                            </td>
-                        </tr>`;
-                });
-            }
-
-            // Totais Dash
-            const totalGeral = somaEntradaPaga + somaEvoPaga + somaAnuaisPagos;
-            document.getElementById('dash-total-geral').textContent = fmt(totalGeral);
-            document.getElementById('dash-total-pago').textContent = fmt(somaEntradaPaga);
-            document.getElementById('dash-total-anuais').textContent = fmt(somaAnuaisPagos);
-            document.getElementById('dash-total-evo').textContent = fmt(somaEvoPaga);
-            document.getElementById('dash-cofrinho-val').textContent = fmt(data.poupanca?.valorAtual);
-            
-            const percObra = Number(data.config.percObraMedido) || 0;
-            document.getElementById('obra-bar').style.width = percObra + '%';
-            document.getElementById('input-perc-obra').value = percObra;
-            document.getElementById('input-cofrinho').value = data.poupanca?.valorAtual;
-            document.getElementById('btn-show-evo').textContent = window.showAllEvo ? "Ocultar" : "Tudo";
+        // --- CONFIGURAÇÃO FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDIwpQtKwxy4AWjsPIQ8t0IieWEmyBjtwY",
+            authDomain: "sitefotografia-cfa61.firebaseapp.com",
+            projectId: "sitefotografia-cfa61",
+            storageBucket: "sitefotografia-cfa61.firebasestorage.app",
+            messagingSenderId: "849725176102",
+            appId: "1:849725176102:web:0b5e6106fe69ce4c6429e7"
         };
+
+        const defaultData = {
+            hero: {
+                title: "A Essência do Momento",
+                subtitle: "Onde a luz encontra a memória",
+                bgImage: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?q=80&w=3840&auto=format&fit=crop" 
+            },
+            sobre: {
+                titulo: "Nossa Trajetória",
+                texto: "Somos Thamiris Souza e Felipe Laia...",
+                imagem: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=2000&auto=format&fit=crop"
+            },
+            contato: {
+                email: "contato@exemplo.com",
+                instagram: "thamirisefelipe",
+                whatsapp: "5511993453280"
+            },
+            portfolio: [
+                { 
+                    id: '1', 
+                    category: 'Casamentos', 
+                    src: 'https://i.postimg.cc/MnMXxPZX/IMG-8649.jpg', 
+                    title: 'Isabela - 11 anos',
+                    isGallery: true,
+                    photos: ['https://i.postimg.cc/MnMXxPZX/IMG-8649.jpg', 'https://i.postimg.cc/YjWXGkXr/IMG-8689.jpg']
+                }
+            ]
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [siteData, setSiteData] = useState(defaultData);
+            const [isAdminMode, setIsAdminMode] = useState(false);
+            const [isLoginOpen, setIsLoginOpen] = useState(false);
+            const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(true);
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [modalData, setModalData] = useState(null);
+            const [scrolled, setScrolled] = useState(false);
+
+            useEffect(() => {
+                if (!window.FirebaseLib) return;
+                const { initializeApp, getAuth, signInAnonymously, onAuthStateChanged, getFirestore, doc, onSnapshot, setDoc } = window.FirebaseLib;
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                const appId = "sitefotografia-cfa61";
+
+                signInAnonymously(auth).catch(console.error);
+                
+                onAuthStateChanged(auth, (u) => {
+                    setUser(u);
+                    if (u) {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'content', 'main');
+                        onSnapshot(docRef, (docSnap) => {
+                            if (docSnap.exists()) {
+                                setSiteData(docSnap.data());
+                            } else {
+                                setDoc(docRef, defaultData);
+                            }
+                            setLoading(false);
+                        }, (error) => {
+                            console.error("Erro no Firestore:", error);
+                            setLoading(false);
+                        });
+                    }
+                });
+
+                const handleScroll = () => setScrolled(window.scrollY > 50);
+                window.addEventListener('scroll', handleScroll);
+                return () => window.removeEventListener('scroll', handleScroll);
+            }, []);
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (password === '290611') {
+                    setIsAdminMode(true);
+                    setIsLoginOpen(false);
+                    setPassword('');
+                } else {
+                    alert("Senha incorreta.");
+                }
+            };
+
+            const saveData = async () => {
+                const { getFirestore, doc, setDoc } = window.FirebaseLib;
+                const db = getFirestore();
+                try {
+                    await setDoc(doc(db, 'artifacts', 'sitefotografia-cfa61', 'public', 'data', 'content', 'main'), siteData);
+                    alert("Salvo com sucesso!");
+                } catch (err) {
+                    alert("Erro ao salvar.");
+                }
+            };
+
+            const scrollToSection = (id) => {
+                document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+                setIsMenuOpen(false);
+            };
+
+            if (loading || !siteData) {
+                return <div className="h-screen flex items-center justify-center bg-stone-900 text-white font-serif-display italic tracking-[0.2em]">Carregando Memórias...</div>;
+            }
+
+            return (
+                <div className="min-h-screen">
+                    {/* BARRA ADMIN */}
+                    {isAdminMode && (
+                        <div className="fixed bottom-0 left-0 right-0 bg-stone-900 text-white z-[200] p-4 flex justify-between items-center shadow-2xl border-t border-stone-700">
+                            <button onClick={saveData} className="bg-white text-stone-900 px-6 py-2 rounded-sm text-[10px] font-bold uppercase">Salvar no Banco</button>
+                            <button onClick={() => setIsAdminMode(false)} className="text-stone-400 text-[10px] uppercase">Sair</button>
+                        </div>
+                    )}
+
+                    {/* NAV */}
+                    <nav className={`fixed w-full z-50 transition-all duration-500 ${scrolled || isMenuOpen ? 'bg-white py-4 shadow-md text-stone-800' : 'bg-transparent py-6 text-white'}`}>
+                        <div className="container mx-auto px-6 flex justify-between items-center">
+                            <div className="text-xl font-serif-display tracking-widest font-semibold uppercase cursor-pointer" onClick={() => scrollToSection('home')}>Thamiris & Felipe</div>
+                            <div className="hidden md:flex space-x-12 text-[10px] tracking-[0.3em] uppercase">
+                                <button onClick={() => scrollToSection('portfolio')} className="hover:opacity-50">Portfólio</button>
+                                <button onClick={() => scrollToSection('sobre')} className="hover:opacity-50">Sobre</button>
+                                <button onClick={() => scrollToSection('contato')} className="hover:opacity-50">Contato</button>
+                            </div>
+                            <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                                {isMenuOpen ? <IconX /> : <IconMenu />}
+                            </button>
+                        </div>
+                        {/* Mobile Menu */}
+                        {isMenuOpen && (
+                            <div className="md:hidden bg-white text-stone-800 absolute top-full left-0 w-full shadow-lg flex flex-col p-6 space-y-4 text-[10px] tracking-widest uppercase text-center border-t border-stone-100">
+                                <button onClick={() => scrollToSection('portfolio')}>Portfólio</button>
+                                <button onClick={() => scrollToSection('sobre')}>Sobre</button>
+                                <button onClick={() => scrollToSection('contato')}>Contato</button>
+                            </div>
+                        )}
+                    </nav>
+
+                    {/* HERO */}
+                    <section id="home" className="relative h-screen flex items-center justify-center bg-stone-900 overflow-hidden">
+                        <img src={siteData.hero?.bgImage} className="absolute inset-0 w-full h-full object-cover hero-img opacity-60" />
+                        <div className="relative z-10 text-center text-white px-6">
+                            <p className="tracking-[0.6em] text-[10px] mb-8 uppercase">{siteData.hero?.subtitle}</p>
+                            <h1 className="font-serif-display text-6xl md:text-9xl mb-10 italic font-light">{siteData.hero?.title}</h1>
+                            <button onClick={() => scrollToSection('portfolio')} className="border border-white/80 px-10 py-4 text-[10px] tracking-widest uppercase hover:bg-white hover:text-stone-900 transition-all">Ver Portfólio</button>
+                        </div>
+                    </section>
+
+                    {/* PORTFOLIO */}
+                    <section id="portfolio" className="py-32 bg-white">
+                        <div className="container mx-auto px-6">
+                            <h2 className="font-serif-display text-5xl italic text-center mb-20">Portfólio</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                                {siteData.portfolio?.map(item => (
+                                    <div key={item.id} className="group cursor-pointer" onClick={() => setModalData({ item, currentIndex: 0 })}>
+                                        <div className="aspect-[16/10] overflow-hidden bg-stone-100">
+                                            <img src={item.src} className="w-full h-full object-cover grayscale-img" />
+                                        </div>
+                                        <div className="mt-4 border-b pb-4 flex justify-between items-end">
+                                            <div>
+                                                <span className="text-[9px] uppercase text-stone-400">{item.category}</span>
+                                                <p className="font-serif-display text-2xl italic">{item.title}</p>
+                                            </div>
+                                            <div className="text-stone-300">→</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* SOBRE */}
+                    <section id="sobre" className="py-32 bg-stone-50">
+                        <div className="container mx-auto px-6 flex flex-col md:flex-row items-center gap-20">
+                            <div className="md:w-1/2">
+                                <img src={siteData.sobre?.imagem} className="w-full shadow-2xl grayscale-img" />
+                            </div>
+                            <div className="md:w-1/2 space-y-6">
+                                <h2 className="font-serif-display text-5xl italic">{siteData.sobre?.titulo}</h2>
+                                <p className="text-stone-600 leading-relaxed font-light whitespace-pre-line">{siteData.sobre?.texto}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* CONTATO */}
+                    <section id="contato" className="py-32 bg-stone-900 text-white text-center">
+                        <div className="container mx-auto px-6 max-w-4xl">
+                            <h2 className="font-serif-display text-5xl italic mb-12">Vamos Conversar?</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-20">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest text-stone-500 mb-2">E-mail</p>
+                                    <a href={`mailto:${siteData.contato?.email}`} className="text-sm underline underline-offset-4">{siteData.contato?.email}</a>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest text-stone-500 mb-2">Instagram</p>
+                                    <a href={`https://instagram.com/${siteData.contato?.instagram?.replace('@','')}`} target="_blank" className="text-sm underline underline-offset-4">@{siteData.contato?.instagram?.replace('@','')}</a>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest text-stone-500 mb-2">WhatsApp</p>
+                                    <a href={`https://wa.me/${siteData.contato?.whatsapp}`} target="_blank" className="text-sm underline underline-offset-4">{siteData.contato?.whatsapp}</a>
+                                </div>
+                            </div>
+                            <button onClick={() => window.open(`https://wa.me/${siteData.contato?.whatsapp}`)} className="bg-white text-stone-900 px-12 py-5 text-[10px] font-bold uppercase tracking-widest hover:bg-stone-200 transition-all">Solicitar Orçamento</button>
+                        </div>
+                    </section>
+
+                    {/* FOOTER */}
+                    <footer className="py-12 bg-black text-stone-600 text-center">
+                        <p className="text-[9px] uppercase tracking-[0.4em] mb-4">© 2026 • Thamiris & Felipe</p>
+                        <button onClick={() => setIsLoginOpen(true)} className="opacity-20 hover:opacity-100 text-[8px] uppercase tracking-widest flex items-center gap-2 mx-auto justify-center"><IconLock /> Painel Admin</button>
+                    </footer>
+
+                    {/* MODAL LOGIN */}
+                    {isLoginOpen && (
+                        <div className="fixed inset-0 z-[250] bg-black/95 flex items-center justify-center p-4">
+                            <div className="bg-white p-12 max-w-sm w-full relative">
+                                <button onClick={() => setIsLoginOpen(false)} className="absolute top-4 right-4 text-stone-400"><IconX size={20}/></button>
+                                <h3 className="font-serif-display text-2xl italic mb-8 text-center text-stone-900">Acesso Restrito</h3>
+                                <form onSubmit={handleLogin} className="space-y-6">
+                                    <input type="password" placeholder="Senha" className="w-full border-b p-3 outline-none" value={password} onChange={e => setPassword(e.target.value)} autoFocus />
+                                    <button type="submit" className="w-full bg-stone-900 text-white p-4 text-[10px] font-bold uppercase tracking-widest">Entrar</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* LIGHTBOX */}
+                    {modalData && (
+                        <div className="fixed inset-0 z-[100] bg-black/98 flex items-center justify-center p-4" onClick={() => setModalData(null)}>
+                            <img src={modalData.item.src} className="max-h-[90vh] max-w-full object-contain" />
+                            <button className="absolute top-10 right-10 text-white"><IconX size={40}/></button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
